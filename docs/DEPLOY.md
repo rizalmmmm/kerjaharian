@@ -13,14 +13,14 @@ Tiga bagian, total kira-kira 20–30 menit:
 1. Daftar di <https://turso.tech> (bisa login pakai akun GitHub).
 2. Di dashboard Turso klik **Create Database**:
    - Nama: `kerjaharian`
-   - Lokasi/region: pilih **Singapore** (terdekat ke Indonesia) jika tersedia.
+   - Lokasi/region: pilih **AWS AP NorthEast (Tokyo)** (Singapore tidak tersedia).
 3. Buka database tersebut, lalu salin dua nilai:
    - **Database URL**: bentuknya `libsql://kerjaharian-xxxx.turso.io`
    - **Token**: klik **Create Token** / **Generate Token** (akses *read & write*, tanpa kedaluwarsa).
 
 > Alternatif lewat terminal (jika memakai Turso CLI):
 > ```bash
-> turso db create kerjaharian --location sin
+> turso db create kerjaharian --location aws-ap-northeast-1
 > turso db show kerjaharian --url
 > turso db tokens create kerjaharian
 > ```
@@ -47,7 +47,7 @@ Tabel dibuat **otomatis** oleh aplikasi saat pertama kali dijalankan, jadi tidak
    > publik `demo1234`. Aktifkan hanya untuk uji coba, lalu hapus variabelnya.
 
 6. Klik **Deploy**. Setelah selesai, situs bisa dibuka di alamat `kerjaharian-xxxx.vercel.app`.
-7. **Settings → Functions → Function Region**: pilih **Singapore (sin1)** agar dekat dengan database
+7. **Settings → Functions → Function Region**: pilih **Tokyo (hnd1)** agar dekat dengan database
    dan pengguna di Indonesia.
 
 Setiap `git push` ke `main` otomatis akan di-deploy ulang.
@@ -96,6 +96,7 @@ Untuk menguji lokal dengan database Turso, salin `.env.example` ke `.env.local` 
 
 | Gejala | Solusi |
 | ------ | ------ |
+| Cek cepat koneksi database | Buka `https://<domain-anda>/api/health`. Hasil `"status":"ok"` berarti database terhubung; jika `"error"`, pesannya menjelaskan penyebabnya. |
 | Halaman error 500 setelah deploy | Periksa `TURSO_DATABASE_URL` dan `TURSO_AUTH_TOKEN` di Vercel → Settings → Environment Variables, lalu **Redeploy**. Log ada di Vercel → Deployments → Functions/Logs. |
 | Domain "Invalid Configuration" | Cek ulang record DNS di Domainesia, tunggu propagasi. Cek dengan <https://dnschecker.org>. |
 | Tombol "Bagikan lokasi" gagal | Pastikan membuka situs lewat `https://` dan izin lokasi browser diizinkan. |
