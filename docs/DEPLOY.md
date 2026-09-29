@@ -81,6 +81,26 @@ Setiap `git push` ke `main` otomatis akan di-deploy ulang.
 > HTTPS **wajib** agar fitur GPS (lacak lokasi) berfungsi di browser, dan Vercel sudah
 > menyediakannya otomatis.
 
+## 4. (Opsional) Email verifikasi via Resend — gratis
+
+Fitur verifikasi email aktif setelah langkah ini. Paket gratis Resend: 3.000 email/bulan (100/hari).
+
+1. Daftar di <https://resend.com>.
+2. **Domains → Add Domain** → isi `kerja-harian.id`. Resend menampilkan beberapa record DNS
+   (biasanya `TXT` untuk SPF/DKIM dan `MX` untuk subdomain `send`).
+3. Tambahkan record tersebut di **DNS Management Domainesia** persis seperti yang ditampilkan
+   (Host Name, Record Type, Address; isi Priority untuk MX). Klik **Verify** di Resend setelah beberapa menit.
+4. **API Keys → Create API Key** (akses *Sending access*), salin kuncinya.
+5. Di Vercel → **Settings → Environments → Production → Environment Variables**, tambahkan:
+
+   | Key              | Value                                        |
+   | ---------------- | -------------------------------------------- |
+   | `RESEND_API_KEY` | kunci dari Resend (`re_…`)                   |
+   | `EMAIL_FROM`     | `Kerja Harian <noreply@kerja-harian.id>`     |
+
+6. **Redeploy**. Pengguna baru otomatis menerima email verifikasi; pengguna lama bisa klik
+   "Kirim ulang email verifikasi" di dasbor.
+
 ## Pengembangan lokal
 
 Tanpa variabel Turso, aplikasi memakai file lokal `data/kerjaharian.db`, jadi cukup:

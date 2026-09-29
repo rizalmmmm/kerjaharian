@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/forms";
 import { StatusBadge } from "@/components/status-badge";
+import { VerifiedBadge } from "@/components/verified-badge";
 import { getCurrentUser } from "@/lib/auth";
 import { applyJob, decideApplication, setJobStatus, withdrawApplication } from "@/lib/actions";
 import { WAGE_UNITS, formatRupiah, formatTanggal } from "@/lib/constants";
@@ -186,6 +187,7 @@ async function ApplicantList({ jobId, jobTitle, ownerId }: { jobId: number; jobT
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{a.name}</span>
                   <StatusBadge status={a.status} />
+                  {!!a.email_verified && <VerifiedBadge label="Terverifikasi" />}
                 </div>
                 <div className="text-sm text-slate-500">
                   {a.city || "—"} · {a.phone}

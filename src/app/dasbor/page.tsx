@@ -4,7 +4,9 @@ import { Field } from "@/components/field";
 import { ActionForm } from "@/components/forms";
 import { StatusBadge } from "@/components/status-badge";
 import { requireUser, type User } from "@/lib/auth";
-import { updateProfile } from "@/lib/actions";
+import { resendVerification, updateProfile } from "@/lib/actions";
+import { VerifiedBadge } from "@/components/verified-badge";
+import { emailEnabled } from "@/lib/email";
 import { WAGE_UNITS, formatRupiah, formatTanggal } from "@/lib/constants";
 import { listApplicationsByWorker, listDealsForEmployer, listJobsByEmployer } from "@/lib/queries";
 import { unreadCounts } from "@/lib/deal";
@@ -19,6 +21,23 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-2xl font-extrabold">Halo, {user.name.split(" ")[0]} 👋</h1>
         <p className="text-slate-600">{user.role === "pekerja" ? "Akun pekerja" : "Akun pemberi kerja"}</p>
+        {!user.email_verified_at && emailEnabled() && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="font-semibold text-amber-900">Verifikasi email Anda</p>
+            <p className="mt-1 text-sm text-amber-800">
+              Kami sudah mengirim tautan verifikasi ke <strong>{user.email}</strong>. Akun terverifikasi mendapat lencana{" "}
+              <VerifiedBadge label="Terverifikasi" /> sehingga lebih dipercaya.
+            </p>
+            <ActionForm
+              action={resendVerification}
+              submitLabel="Kirim ulang email verifikasi"
+              pendingLabel="Mengirim…"
+              className="mt-3 grid max-w-sm gap-2"
+            >
+              {null}
+            </ActionForm>
+          </div>
+        )}
         <div className="mt-6">
           {user.role === "pekerja" ? <WorkerView user={user} /> : <EmployerView user={user} />}
         </div>
@@ -41,7 +60,10 @@ export default async function DashboardPage() {
             <textarea id="bio" name="bio" rows={3} maxLength={500} defaultValue={user.bio} className="input" />
           </div>
         </ActionForm>
-        <p className="mt-3 text-xs text-slate-500">{user.email}</p>
+        <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {user.email}
+          {user.email_verified_at && <VerifiedBadge label="Terverifikasi" />}
+        </p>
       </aside>
     </div>
   );

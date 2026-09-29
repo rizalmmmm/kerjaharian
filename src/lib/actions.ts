@@ -6,6 +6,7 @@ import { batch, get, run } from "./db";
 import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession, getCurrentUser, requireUser } from "./auth";
 import { CATEGORIES, WAGE_UNITS, type Role } from "./constants";
+import { resendWaitSeconds, sendVerificationEmail } from "./verification";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -40,7 +41,20 @@ export async function register(_: FormState, fd: FormData): Promise<FormState> {
     [name, email, phone, hashPassword(password), role, city],
   );
   await createSession(id);
+  // Gagal kirim email tidak menggagalkan pendaftaran; pengguna bisa kirim ulang dari dasbor.
+  await sendVerificationEmail({ id, name, email });
   redirect(safeNext(str(fd, "next")));
+}
+
+export async function resendVerification(): Promise<FormState> {
+  const user = await requireUser();
+  if (user.email_verified_at) return { ok: "Email Anda sudah terverifikasi." };
+  const wait = await resendWaitSeconds(user.id);
+  if (wait > 0) return { error: `Tunggu ${wait} detik sebelum mengirim ulang.` };
+  const sent = await sendVerificationEmail(user);
+  return sent
+    ? { ok: `Tautan verifikasi dikirim ke ${user.email}. Cek juga folder Spam.` }
+    : { error: "Email gagal dikirim. Coba lagi nanti." };
 }
 
 export async function login(_: FormState, fd: FormData): Promise<FormState> {
