@@ -57,3 +57,13 @@ src/
 SQLite menyimpan data di file lokal, jadi jalankan di server dengan disk persisten (VPS, Railway,
 Fly.io dengan volume, dll.). Untuk platform serverless seperti Vercel, ganti `src/lib/db.ts` ke
 database terkelola (mis. Postgres/Turso).
+
+## Tampilan
+
+| Beranda | Detail lowongan |
+| --- | --- |
+| ![Beranda](docs/screenshots/1-beranda.png) | ![Detail lowongan](docs/screenshots/3-detail-lowongan.png) |
+| **Dasbor pemberi kerja** | **Beranda (mobile)** |
+| ![Dasbor](docs/screenshots/6-dasbor-pemberi-kerja.png) | ![Mobile](docs/screenshots/5-beranda-mobile.png) |
+
+Screenshot lain ada di [`docs/screenshots/`](docs/screenshots/).
