@@ -7,6 +7,7 @@ export const CATEGORIES = [
   "Kebersihan",
   "Rumah Makan & Katering",
   "Pertanian & Perkebunan",
+  "Makeup (MUA)",
   "Lainnya",
 ] as const;
 
