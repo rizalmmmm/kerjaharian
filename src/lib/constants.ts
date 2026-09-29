@@ -41,3 +41,6 @@ export function formatTanggal(iso: string): string {
     timeZone: "UTC",
   }).format(new Date(`${iso}T00:00:00Z`));
 }
+
+/** Jumlah maksimal foto portofolio per pengguna. */
+export const MAX_PORTFOLIO = 3;

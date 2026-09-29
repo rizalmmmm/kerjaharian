@@ -84,6 +84,38 @@ CREATE TABLE IF NOT EXISTS message_reads (
   PRIMARY KEY (application_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  reviewer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reviewee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (application_id, reviewer_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewee ON reviews(reviewee_id);
+
+-- Foto disimpan sebagai base64 (JPEG kecil hasil kompres di browser) agar tidak butuh layanan storage terpisah.
+CREATE TABLE IF NOT EXISTS photos (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('avatar', 'portfolio')),
+  mime TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id, kind);
+
+CREATE TABLE IF NOT EXISTS email_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS live_locations (
   application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -100,6 +132,11 @@ async function migrate(db: Client) {
   const cols = (await db.execute("PRAGMA table_info(jobs)")).rows.map((r) => String(r.name));
   if (!cols.includes("lat")) await db.execute("ALTER TABLE jobs ADD COLUMN lat REAL");
   if (!cols.includes("lng")) await db.execute("ALTER TABLE jobs ADD COLUMN lng REAL");
+  const userCols = (await db.execute("PRAGMA table_info(users)")).rows.map((r) => String(r.name));
+  if (!userCols.includes("email_verified_at")) await db.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
+  for (const col of ["avatar_id", "instagram", "facebook"]) {
+    if (!userCols.includes(col)) await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
+  }
 }
 
 const globalForDb = globalThis as unknown as { khDb?: Promise<Client> };
@@ -210,7 +247,7 @@ async function seed(db: Client) {
 
   const stmts: InStatement[] = [
     ...users.map(([id, name, email, phone, role, city, bio]) => ({
-      sql: "INSERT INTO users (id, name, email, phone, password_hash, role, city, bio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      sql: "INSERT INTO users (id, name, email, phone, password_hash, role, city, bio, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
       args: [id, name, email, phone, pw, role, city, bio],
     })),
     ...jobs.map((j, i) => ({
@@ -228,6 +265,19 @@ async function seed(db: Client) {
       sql: "INSERT INTO messages (application_id, sender_id, body) VALUES (1, ?, ?), (1, ?, ?)",
       args: [toko, "Halo Pak Budi, lamaran diterima. Besok datang jam 08.00 ya.", budi, "Siap, Pak. Saya berangkat dari Pasar Minggu."],
     },
+    // Pekerjaan yang sudah selesai + ulasan dua arah, agar rating tampil di demo.
+    {
+      sql: `INSERT INTO jobs (id, employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots, status, lat, lng)
+            VALUES (100, ?, 'Bantu Pindahan Gudang', 'Gudang & Logistik', 'Memindahkan stok ke gudang baru.', 'Jakarta Selatan', 'Jl. Fatmawati No. 12', 150000, 'hari', ?, '08:00', '16:00', 2, 'tutup', ?, ?)`,
+      args: [toko, isoDatePlus(-7), ...coords["Jakarta Selatan"]],
+    },
+    { sql: "INSERT INTO applications (id, job_id, worker_id, status) VALUES (100, 100, ?, 'diterima')", args: [budi] },
+    {
+      sql: "INSERT INTO reviews (application_id, reviewer_id, reviewee_id, rating, comment) VALUES (100, ?, ?, 5, ?), (100, ?, ?, 5, ?)",
+      args: [toko, budi, "Rajin, datang tepat waktu, kerjanya rapi.", budi, toko, "Bayaran tepat waktu, makan siang disediakan."],
+    },
+    { sql: "UPDATE users SET instagram = 'tokosumberrejeki' WHERE id = ?", args: [toko] },
+    { sql: "UPDATE users SET instagram = 'cahaya.eo', facebook = 'cahayaeventorganizer' WHERE id = ?", args: [ev] },
   ];
   try {
     await db.batch(stmts, "write");

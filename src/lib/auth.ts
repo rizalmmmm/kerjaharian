@@ -17,6 +17,10 @@ export type User = {
   role: Role;
   city: string;
   bio: string;
+  email_verified_at: string | null;
+  avatar_id: string | null;
+  instagram: string | null;
+  facebook: string | null;
 };
 
 export async function createSession(userId: number | bigint) {
@@ -43,7 +47,7 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   return get<User>(
-    `SELECT u.id, u.name, u.email, u.phone, u.role, u.city, u.bio
+    `SELECT u.id, u.name, u.email, u.phone, u.role, u.city, u.bio, u.email_verified_at, u.avatar_id, u.instagram, u.facebook
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token = ? AND s.expires_at > ?`,
     [token, new Date().toISOString()],

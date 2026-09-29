@@ -52,6 +52,12 @@ export async function getDealForUser(applicationId: number, userId: number): Pro
 export const canChat = (d: Deal) => d.status !== "ditolak";
 export const canShareLocation = (d: Deal) => d.status === "diterima";
 
+/** Tanggal hari ini (WIB) dalam format YYYY-MM-DD. */
+export const todayWib = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+
+/** Ulasan bisa diberikan setelah deal diterima dan hari kerja sudah tiba. */
+export const canReview = (d: Deal) => d.status === "diterima" && d.work_date <= todayWib();
+
 export function listMessages(applicationId: number, afterId = 0): Promise<Message[]> {
   return all<Message>(
     "SELECT id, sender_id, body, created_at FROM messages WHERE application_id = ? AND id > ? ORDER BY id LIMIT 200",

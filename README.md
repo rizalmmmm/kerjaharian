@@ -14,6 +14,12 @@ Marketplace kerja harian: mempertemukan **pemberi kerja** dengan **pekerja haria
 - **Lacak lokasi GPS setelah deal** (lamaran diterima): kedua pihak dapat membagikan lokasi live dari browser,
   terlihat di peta bersama titik lokasi kerja dan jarak pekerja ke lokasi. Titik lokasi kerja dipilih di peta
   saat memasang lowongan.
+- **Rating & ulasan dua arah** (1–5 bintang + komentar) setelah hari kerja, tampil di daftar pelamar,
+  halaman lowongan, dan profil.
+- **Profil publik** (`/profil/[id]`): foto profil, hingga 3 foto portofolio, tautan Instagram/Facebook,
+  lencana terverifikasi, jumlah pekerjaan selesai, dan daftar ulasan. Foto dikompres di browser dan disimpan
+  di database (tanpa layanan storage tambahan).
+- **Verifikasi email** gratis via Resend (opsional, lihat `docs/DEPLOY.md`).
 
 ## Teknologi
 
