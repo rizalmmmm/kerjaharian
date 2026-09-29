@@ -19,6 +19,8 @@ export type Job = {
   slots: number;
   status: "buka" | "tutup";
   created_at: string;
+  lat: number | null;
+  lng: number | null;
   accepted_count: number;
   applicant_count: number;
 };
@@ -116,12 +118,33 @@ export function listApplicationsByWorker(workerId: number): MyApplication[] {
     .all(workerId) as MyApplication[];
 }
 
-export function getApplication(jobId: number, workerId: number): { status: ApplicationStatus } | null {
+export function getApplication(jobId: number, workerId: number): { id: number; status: ApplicationStatus } | null {
   return (
     (getDb()
-      .prepare("SELECT status FROM applications WHERE job_id = ? AND worker_id = ?")
-      .get(jobId, workerId) as { status: ApplicationStatus } | undefined) ?? null
+      .prepare("SELECT id, status FROM applications WHERE job_id = ? AND worker_id = ?")
+      .get(jobId, workerId) as { id: number; status: ApplicationStatus } | undefined) ?? null
   );
+}
+
+export type EmployerDeal = {
+  id: number;
+  status: ApplicationStatus;
+  job_id: number;
+  title: string;
+  work_date: string;
+  worker_name: string;
+};
+
+/** Lamaran aktif (belum ditolak) di semua lowongan milik pemberi kerja. */
+export function listDealsForEmployer(employerId: number): EmployerDeal[] {
+  return getDb()
+    .prepare(
+      `SELECT a.id, a.status, j.id AS job_id, j.title, j.work_date, u.name AS worker_name
+       FROM applications a JOIN jobs j ON j.id = a.job_id JOIN users u ON u.id = a.worker_id
+       WHERE j.employer_id = ? AND a.status != 'ditolak'
+       ORDER BY (a.status = 'diterima') DESC, j.work_date ASC, a.id DESC`,
+    )
+    .all(employerId) as EmployerDeal[];
 }
 
 export function getStats() {

@@ -55,7 +55,41 @@ CREATE TABLE IF NOT EXISTS applications (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (job_id, worker_id)
 );
+
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_app ON messages(application_id, id);
+
+CREATE TABLE IF NOT EXISTS message_reads (
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  last_read_id INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (application_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS live_locations (
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  lat REAL NOT NULL,
+  lng REAL NOT NULL,
+  accuracy REAL NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (application_id, user_id)
+);
 `;
+
+/** Kolom yang ditambahkan setelah rilis awal, untuk database yang sudah ada. */
+function migrate(db: DatabaseSync) {
+  const cols = (db.prepare("PRAGMA table_info(jobs)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes("lat")) db.exec("ALTER TABLE jobs ADD COLUMN lat REAL");
+  if (!cols.includes("lng")) db.exec("ALTER TABLE jobs ADD COLUMN lng REAL");
+}
 
 const globalForDb = globalThis as unknown as { khDb?: DatabaseSync };
 
@@ -64,6 +98,7 @@ function open(): DatabaseSync {
   const db = new DatabaseSync(DB_PATH);
   db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA);
+  migrate(db);
   seed(db);
   return db;
 }
@@ -105,7 +140,7 @@ function seed(db: DatabaseSync) {
     "Bandung",
     "EO untuk pernikahan dan acara perusahaan.",
   ).lastInsertRowid;
-  insertUser.run(
+  const budi = insertUser.run(
     "Budi Santoso",
     "budi@demo.id",
     "085712345678",
@@ -113,11 +148,15 @@ function seed(db: DatabaseSync) {
     "pekerja",
     "Jakarta Selatan",
     "Berpengalaman bongkar muat dan kurir motor.",
-  );
+  ).lastInsertRowid;
 
   const insertJob = db.prepare(`INSERT INTO jobs
-    (employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    (employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots, lat, lng)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const coords: Record<string, [number, number]> = {
+    "Jakarta Selatan": [-6.2615, 106.7975],
+    Bandung: [-6.9147, 107.6098],
+  };
   const jobs: [number | bigint, string, string, string, string, string, number, string, number, string, string, number][] = [
     [toko, "Helper Bongkar Muat Barang", "Gudang & Logistik", "Membantu bongkar muat kiriman beras dan minyak dari truk ke gudang. Wajib sehat dan kuat angkat beban. Makan siang disediakan.", "Jakarta Selatan", "Jl. Fatmawati No. 12", 150000, "hari", 1, "08:00", "16:00", 4],
     [toko, "Penjaga Toko Pengganti", "Retail & Toko", "Menjaga kasir dan melayani pembeli selama pemilik toko cuti. Bisa menggunakan kalkulator dan jujur.", "Jakarta Selatan", "Jl. Fatmawati No. 12", 120000, "hari", 3, "07:00", "15:00", 1],
@@ -126,7 +165,17 @@ function seed(db: DatabaseSync) {
     [ev, "Tukang Cat Dinding Kantor", "Konstruksi & Renovasi", "Pengecatan ulang ruang kantor 3 lantai. Alat dan cat disediakan.", "Bandung", "Jl. Asia Afrika No. 45", 1200000, "proyek", 5, "08:00", "17:00", 2],
     [toko, "Kurir Motor Antar Barang", "Kurir & Pengiriman", "Mengantar pesanan sembako ke pelanggan area Jakarta Selatan. Wajib punya motor dan SIM C. Bensin diganti.", "Jakarta Selatan", "Jl. Fatmawati No. 12", 130000, "hari", 1, "09:00", "17:00", 2],
   ];
-  for (const j of jobs) {
-    insertJob.run(j[0], j[1], j[2], j[3], j[4], j[5], j[6], j[7], isoDatePlus(j[8]), j[9], j[10], j[11]);
-  }
+  const jobIds = jobs.map((j) => {
+    const [lat, lng] = coords[j[4]];
+    return insertJob.run(j[0], j[1], j[2], j[3], j[4], j[5], j[6], j[7], isoDatePlus(j[8]), j[9], j[10], j[11], lat, lng)
+      .lastInsertRowid;
+  });
+
+  // Contoh "deal": Budi sudah diterima di lowongan bongkar muat, lengkap dengan chat.
+  const deal = db
+    .prepare("INSERT INTO applications (job_id, worker_id, message, status) VALUES (?, ?, ?, 'diterima')")
+    .run(jobIds[0], budi, "Saya biasa bongkar muat di pasar, siap datang pagi.").lastInsertRowid;
+  const insertMsg = db.prepare("INSERT INTO messages (application_id, sender_id, body) VALUES (?, ?, ?)");
+  insertMsg.run(deal, toko, "Halo Pak Budi, lamaran diterima. Besok datang jam 08.00 ya.");
+  insertMsg.run(deal, budi, "Siap, Pak. Saya berangkat dari Pasar Minggu.");
 }

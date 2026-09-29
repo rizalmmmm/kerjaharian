@@ -6,7 +6,8 @@ import { StatusBadge } from "@/components/status-badge";
 import { requireUser, type User } from "@/lib/auth";
 import { updateProfile } from "@/lib/actions";
 import { WAGE_UNITS, formatRupiah, formatTanggal } from "@/lib/constants";
-import { listApplicationsByWorker, listJobsByEmployer } from "@/lib/queries";
+import { listApplicationsByWorker, listDealsForEmployer, listJobsByEmployer } from "@/lib/queries";
+import { unreadCounts } from "@/lib/deal";
 
 export const metadata: Metadata = { title: "Dasbor" };
 
@@ -18,11 +19,18 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-2xl font-extrabold">Halo, {user.name.split(" ")[0]} 👋</h1>
         <p className="text-slate-600">{user.role === "pekerja" ? "Akun pekerja" : "Akun pemberi kerja"}</p>
-        <div className="mt-6">{user.role === "pekerja" ? <WorkerView user={user} /> : <EmployerView user={user} />}</div>
+        <div className="mt-6">
+          {user.role === "pekerja" ? <WorkerView user={user} /> : <EmployerView user={user} />}
+        </div>
       </div>
       <aside className="card h-fit p-5">
         <h2 className="font-bold">Profil</h2>
-        <ActionForm action={updateProfile} submitLabel="Simpan profil" pendingLabel="Menyimpan…" className="mt-3 grid gap-3">
+        <ActionForm
+          action={updateProfile}
+          submitLabel="Simpan profil"
+          pendingLabel="Menyimpan…"
+          className="mt-3 grid gap-3"
+        >
           <Field label="Nama" name="name" defaultValue={user.name} required />
           <Field label="Nomor HP / WhatsApp" name="phone" defaultValue={user.phone} required />
           <Field label="Kota" name="city" defaultValue={user.city} />
@@ -41,6 +49,7 @@ export default async function DashboardPage() {
 
 function WorkerView({ user }: { user: User }) {
   const apps = listApplicationsByWorker(user.id);
+  const unread = unreadCounts(user.id);
   return (
     <section>
       <div className="flex items-center justify-between">
@@ -69,6 +78,9 @@ function WorkerView({ user }: { user: User }) {
               <div className="flex flex-col items-start gap-1 sm:items-end">
                 <StatusBadge status={a.status} />
                 {a.status === "diterima" && <span className="text-sm text-slate-600">Hubungi: {a.employer_phone}</span>}
+                {a.status !== "ditolak" && (
+                  <DealLink id={a.id} accepted={a.status === "diterima"} unread={unread.get(a.id)} />
+                )}
               </div>
             </li>
           ))}
@@ -80,38 +92,73 @@ function WorkerView({ user }: { user: User }) {
 
 function EmployerView({ user }: { user: User }) {
   const jobs = listJobsByEmployer(user.id);
+  const deals = listDealsForEmployer(user.id);
+  const unread = unreadCounts(user.id);
   return (
-    <section>
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">Lowongan saya</h2>
-        <Link href="/lowongan/baru" className="btn-primary">
-          + Pasang lowongan
-        </Link>
-      </div>
-      {jobs.length === 0 ? (
-        <div className="card mt-4 p-8 text-center text-slate-500">Belum ada lowongan. Pasang yang pertama!</div>
-      ) : (
-        <ul className="mt-4 grid gap-3">
-          {jobs.map((j) => (
-            <li key={j.id}>
-              <Link
-                href={`/lowongan/${j.id}`}
-                className="card flex flex-col gap-2 p-4 hover:border-brand-500 sm:flex-row sm:items-center sm:justify-between"
-              >
+    <>
+      {deals.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-lg font-bold">Pelamar & deal</h2>
+          <ul className="mt-4 grid gap-3">
+            {deals.map((d) => (
+              <li key={d.id} className="card flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="font-semibold">{j.title}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{d.worker_name}</span>
+                    <StatusBadge status={d.status} />
+                  </div>
                   <div className="text-sm text-slate-500">
-                    {j.city} · {formatTanggal(j.work_date)} · {j.status === "buka" ? "Dibuka" : "Ditutup"}
+                    {d.title} · {formatTanggal(d.work_date)}
                   </div>
                 </div>
-                <div className="text-sm text-slate-600">
-                  <strong>{j.applicant_count}</strong> pelamar · <strong>{j.accepted_count}</strong>/{j.slots} diterima
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                <DealLink id={d.id} accepted={d.status === "diterima"} unread={unread.get(d.id)} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
-    </section>
+      <section>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">Lowongan saya</h2>
+          <Link href="/lowongan/baru" className="btn-primary">
+            + Pasang lowongan
+          </Link>
+        </div>
+        {jobs.length === 0 ? (
+          <div className="card mt-4 p-8 text-center text-slate-500">Belum ada lowongan. Pasang yang pertama!</div>
+        ) : (
+          <ul className="mt-4 grid gap-3">
+            {jobs.map((j) => (
+              <li key={j.id}>
+                <Link
+                  href={`/lowongan/${j.id}`}
+                  className="card flex flex-col gap-2 p-4 hover:border-brand-500 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <div className="font-semibold">{j.title}</div>
+                    <div className="text-sm text-slate-500">
+                      {j.city} · {formatTanggal(j.work_date)} · {j.status === "buka" ? "Dibuka" : "Ditutup"}
+                    </div>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    <strong>{j.applicant_count}</strong> pelamar · <strong>{j.accepted_count}</strong>/{j.slots}{" "}
+                    diterima
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  );
+}
+
+function DealLink({ id, accepted, unread }: { id: number; accepted: boolean; unread?: number }) {
+  return (
+    <Link href={`/deal/${id}`} className="btn-outline">
+      💬 Chat{accepted && " & Lokasi"}
+      {!!unread && <span className="rounded-full bg-red-500 px-1.5 text-xs text-white">{unread}</span>}
+    </Link>
   );
 }

@@ -74,6 +74,8 @@ export async function createJob(_: FormState, fd: FormData): Promise<FormState> 
   const startTime = str(fd, "start_time");
   const endTime = str(fd, "end_time");
   const slots = Number(str(fd, "slots") || "1");
+  const lat = str(fd, "lat") ? Number(str(fd, "lat")) : null;
+  const lng = str(fd, "lng") ? Number(str(fd, "lng")) : null;
 
   if (!title || !description || !city) return { error: "Judul, deskripsi, dan kota wajib diisi." };
   if (!(CATEGORIES as readonly string[]).includes(category)) return { error: "Pilih kategori pekerjaan." };
@@ -82,13 +84,17 @@ export async function createJob(_: FormState, fd: FormData): Promise<FormState> 
   if (!Number.isInteger(slots) || slots < 1 || slots > 500) return { error: "Jumlah pekerja antara 1–500." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return { error: "Tanggal kerja wajib diisi." };
   if (workDate < new Date().toISOString().slice(0, 10)) return { error: "Tanggal kerja tidak boleh di masa lalu." };
+  const validPin = lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
 
   const { lastInsertRowid } = getDb()
     .prepare(
-      `INSERT INTO jobs (employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO jobs (employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots, lat, lng)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(user.id, title, category, description, city, address, wage, wageUnit, workDate, startTime, endTime, slots);
+    .run(
+      user.id, title, category, description, city, address, wage, wageUnit, workDate, startTime, endTime, slots,
+      validPin ? lat : null, validPin ? lng : null,
+    );
   revalidatePath("/lowongan");
   redirect(`/lowongan/${lastInsertRowid}`);
 }
@@ -140,7 +146,10 @@ export async function decideApplication(applicationId: number, status: "diterima
     .get(applicationId, user.id) as { job_id: number } | undefined;
   if (!row) return;
   getDb().prepare("UPDATE applications SET status = ? WHERE id = ?").run(status, applicationId);
+  // Lokasi live hanya boleh ada selama lamaran berstatus diterima.
+  if (status !== "diterima") getDb().prepare("DELETE FROM live_locations WHERE application_id = ?").run(applicationId);
   revalidatePath(`/lowongan/${row.job_id}`);
+  revalidatePath(`/deal/${applicationId}`);
 }
 
 export async function updateProfile(_: FormState, fd: FormData): Promise<FormState> {

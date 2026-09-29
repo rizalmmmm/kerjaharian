@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { applyJob, decideApplication, setJobStatus, withdrawApplication } from "@/lib/actions";
 import { WAGE_UNITS, formatRupiah, formatTanggal } from "@/lib/constants";
 import { getApplication, getJob, listApplicants } from "@/lib/queries";
+import { unreadCounts } from "@/lib/deal";
 
 async function load(params: Promise<{ id: string }>) {
   const { id } = await params;
@@ -66,7 +67,7 @@ export default async function JobDetailPage(props: PageProps<"/lowongan/[id]">) 
         {isOwner ? <OwnerPanel jobId={job.id} status={job.status} /> : <ApplyPanel jobId={job.id} status={job.status} />}
       </aside>
 
-      {isOwner && <ApplicantList jobId={job.id} jobTitle={job.title} />}
+      {isOwner && <ApplicantList jobId={job.id} jobTitle={job.title} ownerId={job.employer_id} />}
     </div>
   );
 }
@@ -114,8 +115,13 @@ async function ApplyPanel({ jobId, status }: { jobId: number; status: "buka" | "
         <div className="mt-2">
           <StatusBadge status={application.status} />
         </div>
+        {application.status !== "ditolak" && (
+          <Link href={`/deal/${application.id}`} className="btn-primary mt-4 w-full">
+            💬 Chat{application.status === "diterima" && " & lacak lokasi"}
+          </Link>
+        )}
         {application.status === "menunggu" && (
-          <form action={withdrawApplication.bind(null, jobId)} className="mt-4">
+          <form action={withdrawApplication.bind(null, jobId)} className="mt-2">
             <button className="btn-outline w-full">Batalkan lamaran</button>
           </form>
         )}
@@ -165,8 +171,9 @@ function OwnerPanel({ jobId, status }: { jobId: number; status: "buka" | "tutup"
   );
 }
 
-function ApplicantList({ jobId, jobTitle }: { jobId: number; jobTitle: string }) {
+function ApplicantList({ jobId, jobTitle, ownerId }: { jobId: number; jobTitle: string; ownerId: number }) {
   const applicants = listApplicants(jobId);
+  const unread = unreadCounts(ownerId);
   return (
     <section className="card p-6 lg:col-span-2">
       <h2 className="text-lg font-bold">Pelamar ({applicants.length})</h2>
@@ -188,6 +195,14 @@ function ApplicantList({ jobId, jobTitle }: { jobId: number; jobTitle: string })
                 {a.message && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-sm italic text-slate-700">“{a.message}”</p>}
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
+                {a.status !== "ditolak" && (
+                  <Link href={`/deal/${a.id}`} className="btn-outline">
+                    💬 Chat{a.status === "diterima" && " & Lokasi"}
+                    {!!unread.get(a.id) && (
+                      <span className="rounded-full bg-red-500 px-1.5 text-xs text-white">{unread.get(a.id)}</span>
+                    )}
+                  </Link>
+                )}
                 <a
                   href={waLink(a.phone, `Halo ${a.name}, terkait lamaran "${jobTitle}" di kerja-harian.id…`)}
                   target="_blank"

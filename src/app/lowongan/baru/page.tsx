@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Field } from "@/components/field";
 import { ActionForm } from "@/components/forms";
+import { LocationPicker } from "@/components/location-picker";
 import { requireUser } from "@/lib/auth";
 import { createJob } from "@/lib/actions";
 import { CATEGORIES } from "@/lib/constants";
@@ -49,6 +50,7 @@ export default async function NewJobPage() {
             <Field label="Kota" name="city" defaultValue={user.city} required />
             <Field label="Alamat / lokasi (opsional)" name="address" />
           </div>
+          <LocationPicker />
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Upah (Rp)" name="wage" type="number" min={1000} step={1000} required />
             <div>
