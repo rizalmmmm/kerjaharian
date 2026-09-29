@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient, type Client, type InArgs, type InStatement } from "@libsql/client";
+import type { Client, InArgs, InStatement } from "@libsql/client";
 import fs from "node:fs";
 import path from "node:path";
 import { hashPassword } from "./password";
@@ -9,7 +9,9 @@ import { hashPassword } from "./password";
  * - Lokal: file `data/kerjaharian.db` (default).
  * - Produksi (Vercel): Turso, lewat env TURSO_DATABASE_URL + TURSO_AUTH_TOKEN.
  */
-const DB_URL = process.env.TURSO_DATABASE_URL ?? `file:${path.join(process.cwd(), "data", "kerjaharian.db")}`;
+const TURSO_URL = process.env.TURSO_DATABASE_URL?.trim();
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN?.trim();
+const DB_URL = TURSO_URL || `file:${path.join(process.cwd(), "data", "kerjaharian.db")}`;
 
 /** Data demo diisi otomatis secara lokal; di Vercel hanya bila SEED_DEMO_DATA=1. */
 export const DEMO_ENABLED = process.env.SEED_DEMO_DATA
@@ -102,10 +104,28 @@ async function migrate(db: Client) {
 
 const globalForDb = globalThis as unknown as { khDb?: Promise<Client> };
 
+/**
+ * File lokal memakai driver native (libsql); Turso memakai klien HTTP murni-JS,
+ * yang cocok untuk serverless dan tidak butuh modul native di Vercel.
+ */
+async function connect(): Promise<Client> {
+  if (DB_URL.startsWith("file:")) {
+    if (process.env.VERCEL) {
+      throw new Error("TURSO_DATABASE_URL belum diset di Vercel (Settings → Environment Variables), lalu Redeploy.");
+    }
+    fs.mkdirSync(path.dirname(DB_URL.slice(5)), { recursive: true });
+    const { createClient } = await import("@libsql/client/sqlite3");
+    const db = createClient({ url: DB_URL });
+    await db.execute("PRAGMA journal_mode = WAL");
+    return db;
+  }
+  if (!TURSO_TOKEN) throw new Error("TURSO_AUTH_TOKEN belum diset.");
+  const { createClient } = await import("@libsql/client/http");
+  return createClient({ url: DB_URL, authToken: TURSO_TOKEN });
+}
+
 async function open(): Promise<Client> {
-  if (DB_URL.startsWith("file:")) fs.mkdirSync(path.dirname(DB_URL.slice(5)), { recursive: true });
-  const db = createClient({ url: DB_URL, authToken: process.env.TURSO_AUTH_TOKEN });
-  if (DB_URL.startsWith("file:")) await db.execute("PRAGMA journal_mode = WAL");
+  const db = await connect();
   await db.executeMultiple(SCHEMA);
   await migrate(db);
   if (DEMO_ENABLED) await seed(db);
@@ -120,6 +140,18 @@ async function getDb(): Promise<Client> {
     });
   }
   return globalForDb.khDb;
+}
+
+/** Cek koneksi database untuk /api/health (pesan error tanpa rahasia). */
+export async function checkDb(): Promise<{ ok: boolean; mode: string; error?: string }> {
+  const mode = DB_URL.startsWith("file:") ? "file" : "turso";
+  try {
+    await (await getDb()).execute("SELECT 1");
+    return { ok: true, mode };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, mode, error: TURSO_TOKEN ? msg.replaceAll(TURSO_TOKEN, "***") : msg };
+  }
 }
 
 /** Ubah baris libSQL menjadi objek biasa (aman dikirim ke Client Component). */
