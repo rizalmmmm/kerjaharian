@@ -9,6 +9,9 @@ import { applyJob, decideApplication, setJobStatus, withdrawApplication } from "
 import { WAGE_UNITS, formatRupiah, formatTanggal } from "@/lib/constants";
 import { getApplication, getJob, listApplicants } from "@/lib/queries";
 import { unreadCounts } from "@/lib/deal";
+import { ratingSummaries, ratingSummary } from "@/lib/profile";
+import { Avatar } from "@/components/avatar";
+import { RatingBadge } from "@/components/stars";
 
 async function load(params: Promise<{ id: string }>) {
   const { id } = await params;
@@ -30,7 +33,7 @@ function waLink(phone: string, text: string) {
 
 export default async function JobDetailPage(props: PageProps<"/lowongan/[id]">) {
   const job = await load(props.params);
-  const user = await getCurrentUser();
+  const [user, employerRating] = await Promise.all([getCurrentUser(), ratingSummary(job.employer_id)]);
   const isOwner = user?.id === job.employer_id;
   const remaining = Math.max(job.slots - job.accepted_count, 0);
 
@@ -49,7 +52,12 @@ export default async function JobDetailPage(props: PageProps<"/lowongan/[id]">) 
           )}
         </div>
         <h1 className="mt-2 text-2xl font-extrabold">{job.title}</h1>
-        <p className="text-slate-500">{job.employer_name}</p>
+        <div className="flex flex-wrap items-center gap-2 text-slate-500">
+          <Link href={`/profil/${job.employer_id}`} className="font-medium hover:text-brand-700 hover:underline">
+            {job.employer_name}
+          </Link>
+          <RatingBadge avg={employerRating.avg} count={employerRating.count} />
+        </div>
 
         <div className="mt-6 grid gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
           <Info label="Upah" value={`${formatRupiah(job.wage)} ${WAGE_UNITS[job.wage_unit]}`} strong />
@@ -65,7 +73,11 @@ export default async function JobDetailPage(props: PageProps<"/lowongan/[id]">) 
       </article>
 
       <aside className="flex flex-col gap-4">
-        {isOwner ? <OwnerPanel jobId={job.id} status={job.status} /> : <ApplyPanel jobId={job.id} status={job.status} />}
+        {isOwner ? (
+          <OwnerPanel jobId={job.id} status={job.status} />
+        ) : (
+          <ApplyPanel jobId={job.id} status={job.status} />
+        )}
       </aside>
 
       {isOwner && <ApplicantList jobId={job.id} jobTitle={job.title} ownerId={job.employer_id} />}
@@ -104,7 +116,9 @@ async function ApplyPanel({ jobId, status }: { jobId: number; status: "buka" | "
 
   if (user.role !== "pekerja") {
     return (
-      <div className="card p-5 text-sm text-slate-600">Anda masuk sebagai pemberi kerja. Hanya pekerja yang dapat melamar.</div>
+      <div className="card p-5 text-sm text-slate-600">
+        Anda masuk sebagai pemberi kerja. Hanya pekerja yang dapat melamar.
+      </div>
     );
   }
 
@@ -174,6 +188,7 @@ function OwnerPanel({ jobId, status }: { jobId: number; status: "buka" | "tutup"
 
 async function ApplicantList({ jobId, jobTitle, ownerId }: { jobId: number; jobTitle: string; ownerId: number }) {
   const [applicants, unread] = await Promise.all([listApplicants(jobId), unreadCounts(ownerId)]);
+  const ratings = await ratingSummaries(applicants.map((a) => a.worker_id));
   return (
     <section className="card p-6 lg:col-span-2">
       <h2 className="text-lg font-bold">Pelamar ({applicants.length})</h2>
@@ -183,17 +198,33 @@ async function ApplicantList({ jobId, jobTitle, ownerId }: { jobId: number; jobT
         <ul className="mt-4 divide-y divide-slate-200">
           {applicants.map((a) => (
             <li key={a.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{a.name}</span>
-                  <StatusBadge status={a.status} />
-                  {!!a.email_verified && <VerifiedBadge label="Terverifikasi" />}
+              <div className="flex gap-3">
+                <Avatar name={a.name} photoId={a.avatar_id} size="md" />
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/profil/${a.worker_id}`}
+                      className="font-semibold hover:text-brand-700 hover:underline"
+                    >
+                      {a.name}
+                    </Link>
+                    <StatusBadge status={a.status} />
+                    {!!a.email_verified && <VerifiedBadge label="Terverifikasi" />}
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    {a.city || "—"} · {a.phone}
+                  </div>
+                  {a.bio && <p className="mt-1 text-sm text-slate-600">{a.bio}</p>}
+                  <div className="mt-1">
+                    <RatingBadge
+                      avg={ratings.get(a.worker_id)?.avg ?? 0}
+                      count={ratings.get(a.worker_id)?.count ?? 0}
+                    />
+                  </div>
+                  {a.message && (
+                    <p className="mt-2 rounded-lg bg-slate-50 p-2 text-sm italic text-slate-700">“{a.message}”</p>
+                  )}
                 </div>
-                <div className="text-sm text-slate-500">
-                  {a.city || "—"} · {a.phone}
-                </div>
-                {a.bio && <p className="mt-1 text-sm text-slate-600">{a.bio}</p>}
-                {a.message && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-sm italic text-slate-700">“{a.message}”</p>}
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
                 {a.status !== "ditolak" && (

@@ -7,6 +7,8 @@ import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession, getCurrentUser, requireUser } from "./auth";
 import { CATEGORIES, WAGE_UNITS, type Role } from "./constants";
 import { resendWaitSeconds, sendVerificationEmail } from "./verification";
+import { canReview, getDealForUser } from "./deal";
+import { normalizeHandle } from "./profile";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -190,13 +192,40 @@ export async function updateProfile(_: FormState, fd: FormData): Promise<FormSta
   const phone = str(fd, "phone");
   if (!name) return { error: "Nama wajib diisi." };
   if (!/^[0-9+\-\s]{8,16}$/.test(phone)) return { error: "Nomor HP tidak valid." };
-  await run("UPDATE users SET name = ?, phone = ?, city = ?, bio = ? WHERE id = ?", [
+  const instagram = normalizeHandle(str(fd, "instagram"), "instagram");
+  const facebook = normalizeHandle(str(fd, "facebook"), "facebook");
+  if (instagram === null) return { error: "Username Instagram tidak valid." };
+  if (facebook === null) return { error: "Username/tautan Facebook tidak valid." };
+  await run("UPDATE users SET name = ?, phone = ?, city = ?, bio = ?, instagram = ?, facebook = ? WHERE id = ?", [
     name,
     phone,
     str(fd, "city"),
     str(fd, "bio").slice(0, 500),
+    instagram || null,
+    facebook || null,
     user.id,
   ]);
   revalidatePath("/", "layout");
   return { ok: "Profil tersimpan." };
+}
+
+export async function submitReview(_: FormState, fd: FormData): Promise<FormState> {
+  const user = await requireUser();
+  const dealId = Number(str(fd, "deal_id"));
+  const rating = Number(str(fd, "rating"));
+  const comment = str(fd, "comment").slice(0, 500);
+  const deal = Number.isInteger(dealId) ? await getDealForUser(dealId, user.id) : null;
+  if (!deal) return { error: "Deal tidak ditemukan." };
+  if (!canReview(deal)) return { error: "Ulasan bisa diberikan setelah hari kerja tiba." };
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return { error: "Pilih 1–5 bintang." };
+
+  const revieweeId = user.id === deal.worker_id ? deal.employer_id : deal.worker_id;
+  const res = await run(
+    "INSERT OR IGNORE INTO reviews (application_id, reviewer_id, reviewee_id, rating, comment) VALUES (?, ?, ?, ?, ?)",
+    [deal.id, user.id, revieweeId, rating, comment],
+  );
+  if (res.changes === 0) return { error: "Anda sudah memberi ulasan untuk pekerjaan ini." };
+  revalidatePath(`/deal/${deal.id}`);
+  revalidatePath(`/profil/${revieweeId}`);
+  return { ok: "Terima kasih! Ulasan Anda tersimpan." };
 }

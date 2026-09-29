@@ -7,6 +7,8 @@ import { requireUser, type User } from "@/lib/auth";
 import { resendVerification, updateProfile } from "@/lib/actions";
 import { VerifiedBadge } from "@/components/verified-badge";
 import { emailEnabled } from "@/lib/email";
+import { listPhotos } from "@/lib/profile";
+import { PhotoManager } from "@/components/photo-manager";
 import { WAGE_UNITS, formatRupiah, formatTanggal } from "@/lib/constants";
 import { listApplicationsByWorker, listDealsForEmployer, listJobsByEmployer } from "@/lib/queries";
 import { unreadCounts } from "@/lib/deal";
@@ -15,6 +17,7 @@ export const metadata: Metadata = { title: "Dasbor" };
 
 export default async function DashboardPage() {
   const user = await requireUser();
+  const portfolio = await listPhotos(user.id, "portfolio");
 
   return (
     <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[1fr_340px]">
@@ -43,7 +46,15 @@ export default async function DashboardPage() {
         </div>
       </div>
       <aside className="card h-fit p-5">
-        <h2 className="font-bold">Profil</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold">Profil</h2>
+          <Link href={`/profil/${user.id}`} className="text-sm font-semibold text-brand-700 hover:underline">
+            Lihat profil publik →
+          </Link>
+        </div>
+        <div className="mt-3">
+          <PhotoManager name={user.name} avatarId={user.avatar_id} portfolio={portfolio.map((p) => p.id)} />
+        </div>
         <ActionForm
           action={updateProfile}
           submitLabel="Simpan profil"
@@ -59,6 +70,13 @@ export default async function DashboardPage() {
             </label>
             <textarea id="bio" name="bio" rows={3} maxLength={500} defaultValue={user.bio} className="input" />
           </div>
+          <Field label="Instagram (opsional)" name="instagram" defaultValue={user.instagram ?? ""} placeholder="@username" />
+          <Field
+            label="Facebook (opsional)"
+            name="facebook"
+            defaultValue={user.facebook ?? ""}
+            placeholder="username atau tautan profil"
+          />
         </ActionForm>
         <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           {user.email}

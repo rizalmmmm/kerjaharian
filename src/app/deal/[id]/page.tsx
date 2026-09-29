@@ -5,7 +5,10 @@ import { DealRoom } from "@/components/deal-room";
 import { StatusBadge } from "@/components/status-badge";
 import { requireUser } from "@/lib/auth";
 import { formatTanggal } from "@/lib/constants";
-import { getDealForUser, listMessages, markRead } from "@/lib/deal";
+import { canReview, getDealForUser, listMessages, markRead } from "@/lib/deal";
+import { getMyReview, getReviewAbout } from "@/lib/profile";
+import { ReviewForm } from "@/components/review-form";
+import { Stars } from "@/components/stars";
 
 export const metadata: Metadata = { title: "Chat & Lokasi" };
 
@@ -23,7 +26,12 @@ export default async function DealPage(props: PageProps<"/deal/[id]">) {
   const other = isWorker
     ? { id: deal.employer_id, name: deal.employer_name, phone: deal.employer_phone, role: "pemberi_kerja" as const }
     : { id: deal.worker_id, name: deal.worker_name, phone: deal.worker_phone, role: "pekerja" as const };
-  const messages = await listMessages(deal.id);
+  const [messages, myReview, theirReview] = await Promise.all([
+    listMessages(deal.id),
+    getMyReview(deal.id, user.id),
+    getReviewAbout(deal.id, user.id),
+  ]);
+  const reviewable = canReview(deal);
   if (messages.length) await markRead(deal.id, user.id, messages[messages.length - 1].id);
 
   return (
@@ -42,7 +50,10 @@ export default async function DealPage(props: PageProps<"/deal/[id]">) {
             {deal.start_time && ` · ${deal.start_time}–${deal.end_time}`} · {[deal.address, deal.city].filter(Boolean).join(", ")}
           </p>
           <p className="text-sm text-slate-500">
-            {isWorker ? "Pemberi kerja" : "Pekerja"}: <strong>{other.name}</strong>
+            {isWorker ? "Pemberi kerja" : "Pekerja"}:{" "}
+            <Link href={`/profil/${other.id}`} className="font-semibold text-slate-700 hover:text-brand-700 hover:underline">
+              {other.name}
+            </Link>
             {deal.status === "diterima" && ` · ${other.phone}`}
           </p>
         </div>
@@ -57,6 +68,42 @@ export default async function DealPage(props: PageProps<"/deal/[id]">) {
           )}
         </div>
       </div>
+
+      {deal.status === "diterima" && (
+        <section className="card mt-6 p-5">
+          <h2 className="text-lg font-bold">Ulasan</h2>
+          {!reviewable ? (
+            <p className="mt-1 text-sm text-slate-500">
+              Ulasan bisa diberikan mulai {formatTanggal(deal.work_date)}, setelah pekerjaan dilaksanakan.
+            </p>
+          ) : (
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div>
+                {myReview ? (
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-sm text-slate-500">Ulasan Anda untuk {other.name}</p>
+                    <Stars value={myReview.rating} />
+                    {myReview.comment && <p className="mt-1 text-sm text-slate-700">{myReview.comment}</p>}
+                  </div>
+                ) : (
+                  <ReviewForm dealId={deal.id} otherName={other.name} />
+                )}
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-sm text-slate-500">Ulasan dari {other.name} untuk Anda</p>
+                {theirReview ? (
+                  <>
+                    <Stars value={theirReview.rating} />
+                    {theirReview.comment && <p className="mt-1 text-sm text-slate-700">{theirReview.comment}</p>}
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-400">Belum ada.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="mt-6">
         <DealRoom
