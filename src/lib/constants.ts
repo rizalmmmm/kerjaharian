@@ -8,6 +8,9 @@ export const CATEGORIES = [
   "Rumah Makan & Katering",
   "Pertanian & Perkebunan",
   "Makeup (MUA)",
+  "Tukang Elektronik",
+  "Tukang Mekanik",
+  "Programmer",
   "Lainnya",
 ] as const;
 
