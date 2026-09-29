@@ -11,5 +11,5 @@ export async function POST(req: Request, ctx: RouteContext<"/api/deal/[id]/messa
   const text = typeof body === "string" ? body.trim().slice(0, 2000) : "";
   if (!text) return Response.json({ error: "Pesan kosong." }, { status: 400 });
 
-  return Response.json({ message: addMessage(deal.id, user.id, text) });
+  return Response.json({ message: await addMessage(deal.id, user.id, text) });
 }

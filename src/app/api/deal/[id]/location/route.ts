@@ -14,7 +14,7 @@ export async function PUT(req: Request, ctx: RouteContext<"/api/deal/[id]/locati
 
   const { lat, lng, accuracy } = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   if (!isCoord(lat, 90) || !isCoord(lng, 180)) return Response.json({ error: "Koordinat tidak valid." }, { status: 400 });
-  upsertLocation(deal.id, user.id, lat, lng, typeof accuracy === "number" && accuracy >= 0 ? accuracy : 0);
+  await upsertLocation(deal.id, user.id, lat, lng, typeof accuracy === "number" && accuracy >= 0 ? accuracy : 0);
   return Response.json({ ok: true });
 }
 
@@ -22,6 +22,6 @@ export async function PUT(req: Request, ctx: RouteContext<"/api/deal/[id]/locati
 export async function DELETE(_req: Request, ctx: RouteContext<"/api/deal/[id]/location">) {
   const auth = await authorizeDeal(ctx.params);
   if (auth.error) return auth.error;
-  clearLocation(auth.deal.id, auth.user.id);
+  await clearLocation(auth.deal.id, auth.user.id);
   return Response.json({ ok: true });
 }

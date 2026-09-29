@@ -14,8 +14,7 @@ export default async function JobsPage(props: PageProps<"/lowongan">) {
   const q = one(sp.q);
   const category = one(sp.kategori);
   const city = one(sp.kota);
-  const jobs = listOpenJobs({ q, category, city });
-  const cities = listCities();
+  const [jobs, cities] = await Promise.all([listOpenJobs({ q, category, city }), listCities()]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getDb } from "./db";
+import { batch, get, run } from "./db";
 import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession, getCurrentUser, requireUser } from "./auth";
 import { CATEGORIES, WAGE_UNITS, type Role } from "./constants";
@@ -32,23 +32,23 @@ export async function register(_: FormState, fd: FormData): Promise<FormState> {
   if (password.length < 8) return { error: "Kata sandi minimal 8 karakter." };
   if (role !== "pekerja" && role !== "pemberi_kerja") return { error: "Pilih jenis akun." };
 
-  const db = getDb();
-  if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) {
+  if (await get("SELECT 1 FROM users WHERE email = ?", [email])) {
     return { error: "Email sudah terdaftar. Silakan masuk." };
   }
-  const { lastInsertRowid } = db
-    .prepare("INSERT INTO users (name, email, phone, password_hash, role, city) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(name, email, phone, hashPassword(password), role, city);
-  await createSession(lastInsertRowid);
+  const { id } = await run(
+    "INSERT INTO users (name, email, phone, password_hash, role, city) VALUES (?, ?, ?, ?, ?, ?)",
+    [name, email, phone, hashPassword(password), role, city],
+  );
+  await createSession(id);
   redirect(safeNext(str(fd, "next")));
 }
 
 export async function login(_: FormState, fd: FormData): Promise<FormState> {
   const email = str(fd, "email").toLowerCase();
   const password = str(fd, "password");
-  const row = getDb().prepare("SELECT id, password_hash FROM users WHERE email = ?").get(email) as
-    | { id: number; password_hash: string }
-    | undefined;
+  const row = await get<{ id: number; password_hash: string }>("SELECT id, password_hash FROM users WHERE email = ?", [
+    email,
+  ]);
   if (!row || !verifyPassword(password, row.password_hash)) {
     return { error: "Email atau kata sandi salah." };
   }
@@ -86,22 +86,33 @@ export async function createJob(_: FormState, fd: FormData): Promise<FormState> 
   if (workDate < new Date().toISOString().slice(0, 10)) return { error: "Tanggal kerja tidak boleh di masa lalu." };
   const validPin = lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
 
-  const { lastInsertRowid } = getDb()
-    .prepare(
-      `INSERT INTO jobs (employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots, lat, lng)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      user.id, title, category, description, city, address, wage, wageUnit, workDate, startTime, endTime, slots,
-      validPin ? lat : null, validPin ? lng : null,
-    );
+  const { id } = await run(
+    `INSERT INTO jobs (employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots, lat, lng)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      user.id,
+      title,
+      category,
+      description,
+      city,
+      address,
+      wage,
+      wageUnit,
+      workDate,
+      startTime,
+      endTime,
+      slots,
+      validPin ? lat : null,
+      validPin ? lng : null,
+    ],
+  );
   revalidatePath("/lowongan");
-  redirect(`/lowongan/${lastInsertRowid}`);
+  redirect(`/lowongan/${id}`);
 }
 
 export async function setJobStatus(jobId: number, status: "buka" | "tutup") {
   const user = await requireUser("pemberi_kerja");
-  getDb().prepare("UPDATE jobs SET status = ? WHERE id = ? AND employer_id = ?").run(status, jobId, user.id);
+  await run("UPDATE jobs SET status = ? WHERE id = ? AND employer_id = ?", [status, jobId, user.id]);
   revalidatePath(`/lowongan/${jobId}`);
   revalidatePath("/dasbor");
 }
@@ -112,15 +123,14 @@ export async function applyJob(_: FormState, fd: FormData): Promise<FormState> {
   if (!user) redirect(`/masuk?next=/lowongan/${jobId}`);
   if (user.role !== "pekerja") return { error: "Hanya akun pekerja yang dapat melamar." };
 
-  const db = getDb();
-  const job = db.prepare("SELECT status, employer_id FROM jobs WHERE id = ?").get(jobId) as
-    | { status: string; employer_id: number }
-    | undefined;
+  const job = await get<{ status: string }>("SELECT status FROM jobs WHERE id = ?", [jobId]);
   if (!job || job.status !== "buka") return { error: "Lowongan sudah ditutup." };
 
-  const result = db
-    .prepare("INSERT OR IGNORE INTO applications (job_id, worker_id, message) VALUES (?, ?, ?)")
-    .run(jobId, user.id, str(fd, "message").slice(0, 1000));
+  const result = await run("INSERT OR IGNORE INTO applications (job_id, worker_id, message) VALUES (?, ?, ?)", [
+    jobId,
+    user.id,
+    str(fd, "message").slice(0, 1000),
+  ]);
   if (result.changes === 0) return { error: "Anda sudah melamar pekerjaan ini." };
 
   revalidatePath(`/lowongan/${jobId}`);
@@ -129,25 +139,33 @@ export async function applyJob(_: FormState, fd: FormData): Promise<FormState> {
 
 export async function withdrawApplication(jobId: number) {
   const user = await requireUser("pekerja");
-  getDb()
-    .prepare("DELETE FROM applications WHERE job_id = ? AND worker_id = ? AND status = 'menunggu'")
-    .run(jobId, user.id);
+  const app = await get<{ id: number }>(
+    "SELECT id FROM applications WHERE job_id = ? AND worker_id = ? AND status = 'menunggu'",
+    [jobId, user.id],
+  );
+  if (app) {
+    // Hapus eksplisit (tidak bergantung pada PRAGMA foreign_keys yang belum tentu aktif di Turso).
+    await batch(
+      ["messages", "message_reads", "live_locations"]
+        .map((t) => ({ sql: `DELETE FROM ${t} WHERE application_id = ?`, args: [app.id] }))
+        .concat({ sql: "DELETE FROM applications WHERE id = ?", args: [app.id] }),
+    );
+  }
   revalidatePath(`/lowongan/${jobId}`);
   revalidatePath("/dasbor");
 }
 
 export async function decideApplication(applicationId: number, status: "diterima" | "ditolak" | "menunggu") {
   const user = await requireUser("pemberi_kerja");
-  const row = getDb()
-    .prepare(
-      `SELECT a.job_id FROM applications a JOIN jobs j ON j.id = a.job_id
-       WHERE a.id = ? AND j.employer_id = ?`,
-    )
-    .get(applicationId, user.id) as { job_id: number } | undefined;
+  const row = await get<{ job_id: number }>(
+    `SELECT a.job_id FROM applications a JOIN jobs j ON j.id = a.job_id
+     WHERE a.id = ? AND j.employer_id = ?`,
+    [applicationId, user.id],
+  );
   if (!row) return;
-  getDb().prepare("UPDATE applications SET status = ? WHERE id = ?").run(status, applicationId);
+  await run("UPDATE applications SET status = ? WHERE id = ?", [status, applicationId]);
   // Lokasi live hanya boleh ada selama lamaran berstatus diterima.
-  if (status !== "diterima") getDb().prepare("DELETE FROM live_locations WHERE application_id = ?").run(applicationId);
+  if (status !== "diterima") await run("DELETE FROM live_locations WHERE application_id = ?", [applicationId]);
   revalidatePath(`/lowongan/${row.job_id}`);
   revalidatePath(`/deal/${applicationId}`);
 }
@@ -158,9 +176,13 @@ export async function updateProfile(_: FormState, fd: FormData): Promise<FormSta
   const phone = str(fd, "phone");
   if (!name) return { error: "Nama wajib diisi." };
   if (!/^[0-9+\-\s]{8,16}$/.test(phone)) return { error: "Nomor HP tidak valid." };
-  getDb()
-    .prepare("UPDATE users SET name = ?, phone = ?, city = ?, bio = ? WHERE id = ?")
-    .run(name, phone, str(fd, "city"), str(fd, "bio").slice(0, 500), user.id);
+  await run("UPDATE users SET name = ?, phone = ?, city = ?, bio = ? WHERE id = ?", [
+    name,
+    phone,
+    str(fd, "city"),
+    str(fd, "bio").slice(0, 500),
+    user.id,
+  ]);
   revalidatePath("/", "layout");
   return { ok: "Profil tersimpan." };
 }

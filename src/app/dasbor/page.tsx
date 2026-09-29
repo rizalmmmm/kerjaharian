@@ -47,9 +47,8 @@ export default async function DashboardPage() {
   );
 }
 
-function WorkerView({ user }: { user: User }) {
-  const apps = listApplicationsByWorker(user.id);
-  const unread = unreadCounts(user.id);
+async function WorkerView({ user }: { user: User }) {
+  const [apps, unread] = await Promise.all([listApplicationsByWorker(user.id), unreadCounts(user.id)]);
   return (
     <section>
       <div className="flex items-center justify-between">
@@ -90,10 +89,12 @@ function WorkerView({ user }: { user: User }) {
   );
 }
 
-function EmployerView({ user }: { user: User }) {
-  const jobs = listJobsByEmployer(user.id);
-  const deals = listDealsForEmployer(user.id);
-  const unread = unreadCounts(user.id);
+async function EmployerView({ user }: { user: User }) {
+  const [jobs, deals, unread] = await Promise.all([
+    listJobsByEmployer(user.id),
+    listDealsForEmployer(user.id),
+    unreadCounts(user.id),
+  ]);
   return (
     <>
       {deals.length > 0 && (

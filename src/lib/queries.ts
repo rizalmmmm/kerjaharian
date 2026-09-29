@@ -1,5 +1,5 @@
 import "server-only";
-import { getDb } from "./db";
+import { all, get } from "./db";
 import type { ApplicationStatus, WageUnit } from "./constants";
 
 export type Job = {
@@ -33,7 +33,7 @@ const JOB_SELECT = `
 
 export type JobFilter = { q?: string; category?: string; city?: string };
 
-export function listOpenJobs(filter: JobFilter = {}, limit = 50): Job[] {
+export function listOpenJobs(filter: JobFilter = {}, limit = 50): Promise<Job[]> {
   const where = ["j.status = 'buka'", "j.work_date >= date('now')"];
   const args: string[] = [];
   if (filter.q) {
@@ -48,27 +48,23 @@ export function listOpenJobs(filter: JobFilter = {}, limit = 50): Job[] {
     where.push("j.city LIKE ?");
     args.push(`%${filter.city}%`);
   }
-  return getDb()
-    .prepare(`${JOB_SELECT} WHERE ${where.join(" AND ")} ORDER BY j.work_date ASC, j.id DESC LIMIT ${limit}`)
-    .all(...args) as Job[];
+  return all<Job>(
+    `${JOB_SELECT} WHERE ${where.join(" AND ")} ORDER BY j.work_date ASC, j.id DESC LIMIT ${Math.floor(limit)}`,
+    args,
+  );
 }
 
-export function getJob(id: number): Job | null {
-  return (getDb().prepare(`${JOB_SELECT} WHERE j.id = ?`).get(id) as Job | undefined) ?? null;
+export function getJob(id: number): Promise<Job | null> {
+  return get<Job>(`${JOB_SELECT} WHERE j.id = ?`, [id]);
 }
 
-export function listJobsByEmployer(employerId: number): Job[] {
-  return getDb()
-    .prepare(`${JOB_SELECT} WHERE j.employer_id = ? ORDER BY j.created_at DESC, j.id DESC`)
-    .all(employerId) as Job[];
+export function listJobsByEmployer(employerId: number): Promise<Job[]> {
+  return all<Job>(`${JOB_SELECT} WHERE j.employer_id = ? ORDER BY j.created_at DESC, j.id DESC`, [employerId]);
 }
 
-export function listCities(): string[] {
-  return (
-    getDb()
-      .prepare("SELECT DISTINCT city FROM jobs WHERE status = 'buka' ORDER BY city")
-      .all() as { city: string }[]
-  ).map((r) => r.city);
+export async function listCities(): Promise<string[]> {
+  const rows = await all<{ city: string }>("SELECT DISTINCT city FROM jobs WHERE status = 'buka' ORDER BY city");
+  return rows.map((r) => r.city);
 }
 
 export type Applicant = {
@@ -83,14 +79,13 @@ export type Applicant = {
   created_at: string;
 };
 
-export function listApplicants(jobId: number): Applicant[] {
-  return getDb()
-    .prepare(
-      `SELECT a.id, a.worker_id, u.name, u.phone, u.city, u.bio, a.message, a.status, a.created_at
-       FROM applications a JOIN users u ON u.id = a.worker_id
-       WHERE a.job_id = ? ORDER BY a.created_at ASC, a.id ASC`,
-    )
-    .all(jobId) as Applicant[];
+export function listApplicants(jobId: number): Promise<Applicant[]> {
+  return all<Applicant>(
+    `SELECT a.id, a.worker_id, u.name, u.phone, u.city, u.bio, a.message, a.status, a.created_at
+     FROM applications a JOIN users u ON u.id = a.worker_id
+     WHERE a.job_id = ? ORDER BY a.created_at ASC, a.id ASC`,
+    [jobId],
+  );
 }
 
 export type MyApplication = {
@@ -107,23 +102,21 @@ export type MyApplication = {
   employer_phone: string;
 };
 
-export function listApplicationsByWorker(workerId: number): MyApplication[] {
-  return getDb()
-    .prepare(
-      `SELECT a.id, a.status, a.created_at, j.id AS job_id, j.title, j.city, j.wage, j.wage_unit, j.work_date,
-              u.name AS employer_name, u.phone AS employer_phone
-       FROM applications a JOIN jobs j ON j.id = a.job_id JOIN users u ON u.id = j.employer_id
-       WHERE a.worker_id = ? ORDER BY a.created_at DESC, a.id DESC`,
-    )
-    .all(workerId) as MyApplication[];
+export function listApplicationsByWorker(workerId: number): Promise<MyApplication[]> {
+  return all<MyApplication>(
+    `SELECT a.id, a.status, a.created_at, j.id AS job_id, j.title, j.city, j.wage, j.wage_unit, j.work_date,
+            u.name AS employer_name, u.phone AS employer_phone
+     FROM applications a JOIN jobs j ON j.id = a.job_id JOIN users u ON u.id = j.employer_id
+     WHERE a.worker_id = ? ORDER BY a.created_at DESC, a.id DESC`,
+    [workerId],
+  );
 }
 
-export function getApplication(jobId: number, workerId: number): { id: number; status: ApplicationStatus } | null {
-  return (
-    (getDb()
-      .prepare("SELECT id, status FROM applications WHERE job_id = ? AND worker_id = ?")
-      .get(jobId, workerId) as { id: number; status: ApplicationStatus } | undefined) ?? null
-  );
+export function getApplication(
+  jobId: number,
+  workerId: number,
+): Promise<{ id: number; status: ApplicationStatus } | null> {
+  return get("SELECT id, status FROM applications WHERE job_id = ? AND worker_id = ?", [jobId, workerId]);
 }
 
 export type EmployerDeal = {
@@ -136,23 +129,22 @@ export type EmployerDeal = {
 };
 
 /** Lamaran aktif (belum ditolak) di semua lowongan milik pemberi kerja. */
-export function listDealsForEmployer(employerId: number): EmployerDeal[] {
-  return getDb()
-    .prepare(
-      `SELECT a.id, a.status, j.id AS job_id, j.title, j.work_date, u.name AS worker_name
-       FROM applications a JOIN jobs j ON j.id = a.job_id JOIN users u ON u.id = a.worker_id
-       WHERE j.employer_id = ? AND a.status != 'ditolak'
-       ORDER BY (a.status = 'diterima') DESC, j.work_date ASC, a.id DESC`,
-    )
-    .all(employerId) as EmployerDeal[];
+export function listDealsForEmployer(employerId: number): Promise<EmployerDeal[]> {
+  return all<EmployerDeal>(
+    `SELECT a.id, a.status, j.id AS job_id, j.title, j.work_date, u.name AS worker_name
+     FROM applications a JOIN jobs j ON j.id = a.job_id JOIN users u ON u.id = a.worker_id
+     WHERE j.employer_id = ? AND a.status != 'ditolak'
+     ORDER BY (a.status = 'diterima') DESC, j.work_date ASC, a.id DESC`,
+    [employerId],
+  );
 }
 
-export function getStats() {
-  const db = getDb();
-  const one = (sql: string) => (db.prepare(sql).get() as { n: number }).n;
-  return {
-    openJobs: one("SELECT COUNT(*) AS n FROM jobs WHERE status = 'buka' AND work_date >= date('now')"),
-    workers: one("SELECT COUNT(*) AS n FROM users WHERE role = 'pekerja'"),
-    employers: one("SELECT COUNT(*) AS n FROM users WHERE role = 'pemberi_kerja'"),
-  };
+export async function getStats() {
+  const row = await get<{ openJobs: number; workers: number; employers: number }>(
+    `SELECT
+       (SELECT COUNT(*) FROM jobs WHERE status = 'buka' AND work_date >= date('now')) AS openJobs,
+       (SELECT COUNT(*) FROM users WHERE role = 'pekerja') AS workers,
+       (SELECT COUNT(*) FROM users WHERE role = 'pemberi_kerja') AS employers`,
+  );
+  return row ?? { openJobs: 0, workers: 0, employers: 0 };
 }

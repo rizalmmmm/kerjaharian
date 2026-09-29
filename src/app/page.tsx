@@ -3,9 +3,8 @@ import { JobCard } from "@/components/job-card";
 import { CATEGORIES } from "@/lib/constants";
 import { getStats, listOpenJobs } from "@/lib/queries";
 
-export default function Home() {
-  const jobs = listOpenJobs({}, 6);
-  const stats = getStats();
+export default async function Home() {
+  const [jobs, stats] = await Promise.all([listOpenJobs({}, 6), getStats()]);
 
   return (
     <>

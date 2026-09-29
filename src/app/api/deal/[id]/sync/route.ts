@@ -9,12 +9,12 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/deal/[id]/sy
   const { user, deal } = auth;
 
   const after = Number(req.nextUrl.searchParams.get("after") ?? 0) || 0;
-  const messages = listMessages(deal.id, after);
-  if (messages.length) markRead(deal.id, user.id, messages[messages.length - 1].id);
+  const messages = await listMessages(deal.id, after);
+  if (messages.length) await markRead(deal.id, user.id, messages[messages.length - 1].id);
 
   return Response.json({
     status: deal.status,
     messages,
-    locations: canShareLocation(deal) ? listLocations(deal.id) : [],
+    locations: canShareLocation(deal) ? await listLocations(deal.id) : [],
   });
 }

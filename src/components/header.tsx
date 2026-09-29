@@ -5,7 +5,7 @@ import { unreadCounts } from "@/lib/deal";
 
 export async function Header() {
   const user = await getCurrentUser();
-  const unread = user ? [...unreadCounts(user.id).values()].reduce((a, b) => a + b, 0) : 0;
+  const unread = user ? [...(await unreadCounts(user.id)).values()].reduce((a, b) => a + b, 0) : 0;
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">

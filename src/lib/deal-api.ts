@@ -10,7 +10,7 @@ export async function authorizeDeal(params: Promise<{ id: string }>): Promise<Ok
   const user = await getCurrentUser();
   if (!user) return { error: Response.json({ error: "Harus masuk." }, { status: 401 }) };
   const id = Number((await params).id);
-  const deal = Number.isInteger(id) ? getDealForUser(id, user.id) : null;
+  const deal = Number.isInteger(id) ? await getDealForUser(id, user.id) : null;
   if (!deal) return { error: Response.json({ error: "Tidak ditemukan." }, { status: 404 }) };
   return { user, deal };
 }

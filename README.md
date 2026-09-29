@@ -19,22 +19,22 @@ Marketplace kerja harian: mempertemukan **pemberi kerja** dengan **pekerja haria
 
 - [Next.js 16](https://nextjs.org) (App Router, Server Components, Server Actions) + TypeScript
 - Tailwind CSS v4
-- SQLite bawaan Node.js (`node:sqlite`) — tanpa dependensi database tambahan
+- Database libSQL/SQLite: file lokal saat pengembangan, [Turso](https://turso.tech) di produksi (Vercel)
 - Autentikasi sesi berbasis cookie httpOnly, kata sandi di-hash dengan scrypt
 - Peta: [Leaflet](https://leafletjs.com) + tile OpenStreetMap; GPS lewat Geolocation API browser
 - Chat & lokasi live memakai polling tiap 3 detik ke `/api/deal/[id]/sync`
 
 ## Menjalankan secara lokal
 
-Butuh Node.js ≥ 22.13.
+Butuh Node.js ≥ 20.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Buka http://localhost:3000. Database dibuat otomatis di `data/kerjaharian.db` (ubah lewat env
-`DATABASE_PATH`) dan diisi data demo:
+Buka http://localhost:3000. Database dibuat otomatis di `data/kerjaharian.db` (atau Turso bila `TURSO_DATABASE_URL` diisi, lihat
+`.env.example`) dan diisi data demo:
 
 | Email           | Peran          | Kata sandi |
 | --------------- | -------------- | ---------- |
@@ -55,7 +55,7 @@ src/
     api/deal/[id]/         API polling, kirim pesan, perbarui/hapus lokasi
   components/              Header, kartu lowongan, form, dll.
   lib/
-    db.ts                  Skema SQLite + data demo
+    db.ts                  Koneksi libSQL/Turso, skema, data demo
     auth.ts                Sesi & pengguna saat ini
     queries.ts             Query baca
     actions.ts             Server Actions (tulis)
@@ -70,11 +70,13 @@ src/
 - Lokasi dihapus otomatis bila status lamaran berubah dari "diterima".
 - Akun demo `budi@demo.id` sudah punya deal diterima dengan `toko@demo.id` untuk mencoba fitur ini.
 
-## Catatan deploy
+## Deploy (Vercel + Turso + domain)
 
-SQLite menyimpan data di file lokal, jadi jalankan di server dengan disk persisten (VPS, Railway,
-Fly.io dengan volume, dll.). Untuk platform serverless seperti Vercel, ganti `src/lib/db.ts` ke
-database terkelola (mis. Postgres/Turso).
+Panduan lengkap langkah demi langkah: **[docs/DEPLOY.md](docs/DEPLOY.md)**.
+
+Ringkasnya: buat database di Turso, import repo ke Vercel dengan env `TURSO_DATABASE_URL` dan
+`TURSO_AUTH_TOKEN`, lalu arahkan DNS `kerja-harian.id` di Domainesia ke Vercel. Di Vercel, data demo
+tidak diisi kecuali `SEED_DEMO_DATA=1`.
 
 ## Tampilan
 

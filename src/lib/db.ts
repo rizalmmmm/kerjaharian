@@ -1,11 +1,20 @@
 import "server-only";
-import { DatabaseSync } from "node:sqlite";
+import { createClient, type Client, type InArgs, type InStatement } from "@libsql/client";
 import fs from "node:fs";
 import path from "node:path";
 import { hashPassword } from "./password";
 
-const DB_PATH =
-  process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "kerjaharian.db");
+/**
+ * Database: libSQL/SQLite.
+ * - Lokal: file `data/kerjaharian.db` (default).
+ * - Produksi (Vercel): Turso, lewat env TURSO_DATABASE_URL + TURSO_AUTH_TOKEN.
+ */
+const DB_URL = process.env.TURSO_DATABASE_URL ?? `file:${path.join(process.cwd(), "data", "kerjaharian.db")}`;
+
+/** Data demo diisi otomatis secara lokal; di Vercel hanya bila SEED_DEMO_DATA=1. */
+export const DEMO_ENABLED = process.env.SEED_DEMO_DATA
+  ? process.env.SEED_DEMO_DATA === "1"
+  : !process.env.VERCEL;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -85,27 +94,56 @@ CREATE TABLE IF NOT EXISTS live_locations (
 `;
 
 /** Kolom yang ditambahkan setelah rilis awal, untuk database yang sudah ada. */
-function migrate(db: DatabaseSync) {
-  const cols = (db.prepare("PRAGMA table_info(jobs)").all() as { name: string }[]).map((c) => c.name);
-  if (!cols.includes("lat")) db.exec("ALTER TABLE jobs ADD COLUMN lat REAL");
-  if (!cols.includes("lng")) db.exec("ALTER TABLE jobs ADD COLUMN lng REAL");
+async function migrate(db: Client) {
+  const cols = (await db.execute("PRAGMA table_info(jobs)")).rows.map((r) => String(r.name));
+  if (!cols.includes("lat")) await db.execute("ALTER TABLE jobs ADD COLUMN lat REAL");
+  if (!cols.includes("lng")) await db.execute("ALTER TABLE jobs ADD COLUMN lng REAL");
 }
 
-const globalForDb = globalThis as unknown as { khDb?: DatabaseSync };
+const globalForDb = globalThis as unknown as { khDb?: Promise<Client> };
 
-function open(): DatabaseSync {
-  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  const db = new DatabaseSync(DB_PATH);
-  db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
-  db.exec(SCHEMA);
-  migrate(db);
-  seed(db);
+async function open(): Promise<Client> {
+  if (DB_URL.startsWith("file:")) fs.mkdirSync(path.dirname(DB_URL.slice(5)), { recursive: true });
+  const db = createClient({ url: DB_URL, authToken: process.env.TURSO_AUTH_TOKEN });
+  if (DB_URL.startsWith("file:")) await db.execute("PRAGMA journal_mode = WAL");
+  await db.executeMultiple(SCHEMA);
+  await migrate(db);
+  if (DEMO_ENABLED) await seed(db);
   return db;
 }
 
-export function getDb(): DatabaseSync {
-  if (!globalForDb.khDb) globalForDb.khDb = open();
+async function getDb(): Promise<Client> {
+  if (!globalForDb.khDb) {
+    globalForDb.khDb = open().catch((err) => {
+      globalForDb.khDb = undefined;
+      throw err;
+    });
+  }
   return globalForDb.khDb;
+}
+
+/** Ubah baris libSQL menjadi objek biasa (aman dikirim ke Client Component). */
+function plain<T>(columns: string[], row: ArrayLike<unknown>): T {
+  return Object.fromEntries(columns.map((c, i) => [c, row[i]])) as T;
+}
+
+export async function all<T>(sql: string, args: InArgs = []): Promise<T[]> {
+  const res = await (await getDb()).execute({ sql, args });
+  return res.rows.map((r) => plain<T>(res.columns, r));
+}
+
+export async function get<T>(sql: string, args: InArgs = []): Promise<T | null> {
+  return (await all<T>(sql, args))[0] ?? null;
+}
+
+export async function run(sql: string, args: InArgs = []): Promise<{ id: number; changes: number }> {
+  const res = await (await getDb()).execute({ sql, args });
+  return { id: Number(res.lastInsertRowid ?? 0), changes: res.rowsAffected };
+}
+
+/** Jalankan beberapa perintah tulis secara atomik. */
+export async function batch(statements: InStatement[]) {
+  await (await getDb()).batch(statements, "write");
 }
 
 function isoDatePlus(days: number): string {
@@ -114,50 +152,22 @@ function isoDatePlus(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function seed(db: DatabaseSync) {
-  const row = db.prepare("SELECT COUNT(*) AS n FROM users").get() as { n: number };
-  if (row.n > 0) return;
+async function seed(db: Client) {
+  const { rows } = await db.execute("SELECT COUNT(*) AS n FROM users");
+  if (Number(rows[0].n) > 0) return;
 
   const pw = hashPassword("demo1234");
-  const insertUser = db.prepare(
-    "INSERT INTO users (name, email, phone, password_hash, role, city, bio) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  );
-  const toko = insertUser.run(
-    "Toko Sumber Rejeki",
-    "toko@demo.id",
-    "081234567890",
-    pw,
-    "pemberi_kerja",
-    "Jakarta Selatan",
-    "Toko grosir sembako sejak 2005.",
-  ).lastInsertRowid;
-  const ev = insertUser.run(
-    "Cahaya Event Organizer",
-    "event@demo.id",
-    "081298765432",
-    pw,
-    "pemberi_kerja",
-    "Bandung",
-    "EO untuk pernikahan dan acara perusahaan.",
-  ).lastInsertRowid;
-  const budi = insertUser.run(
-    "Budi Santoso",
-    "budi@demo.id",
-    "085712345678",
-    pw,
-    "pekerja",
-    "Jakarta Selatan",
-    "Berpengalaman bongkar muat dan kurir motor.",
-  ).lastInsertRowid;
-
-  const insertJob = db.prepare(`INSERT INTO jobs
-    (employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots, lat, lng)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const users: [number, string, string, string, string, string, string][] = [
+    [1, "Toko Sumber Rejeki", "toko@demo.id", "081234567890", "pemberi_kerja", "Jakarta Selatan", "Toko grosir sembako sejak 2005."],
+    [2, "Cahaya Event Organizer", "event@demo.id", "081298765432", "pemberi_kerja", "Bandung", "EO untuk pernikahan dan acara perusahaan."],
+    [3, "Budi Santoso", "budi@demo.id", "085712345678", "pekerja", "Jakarta Selatan", "Berpengalaman bongkar muat dan kurir motor."],
+  ];
+  const [toko, ev, budi] = [1, 2, 3];
   const coords: Record<string, [number, number]> = {
     "Jakarta Selatan": [-6.2615, 106.7975],
     Bandung: [-6.9147, 107.6098],
   };
-  const jobs: [number | bigint, string, string, string, string, string, number, string, number, string, string, number][] = [
+  const jobs: [number, string, string, string, string, string, number, string, number, string, string, number][] = [
     [toko, "Helper Bongkar Muat Barang", "Gudang & Logistik", "Membantu bongkar muat kiriman beras dan minyak dari truk ke gudang. Wajib sehat dan kuat angkat beban. Makan siang disediakan.", "Jakarta Selatan", "Jl. Fatmawati No. 12", 150000, "hari", 1, "08:00", "16:00", 4],
     [toko, "Penjaga Toko Pengganti", "Retail & Toko", "Menjaga kasir dan melayani pembeli selama pemilik toko cuti. Bisa menggunakan kalkulator dan jujur.", "Jakarta Selatan", "Jl. Fatmawati No. 12", 120000, "hari", 3, "07:00", "15:00", 1],
     [ev, "Crew Dekorasi Pernikahan", "Event", "Memasang dekorasi pelaminan, bunga, dan lighting untuk acara resepsi. Pengalaman dekorasi menjadi nilai tambah.", "Bandung", "Gedung Serbaguna Dago", 175000, "hari", 2, "06:00", "18:00", 6],
@@ -165,17 +175,31 @@ function seed(db: DatabaseSync) {
     [ev, "Tukang Cat Dinding Kantor", "Konstruksi & Renovasi", "Pengecatan ulang ruang kantor 3 lantai. Alat dan cat disediakan.", "Bandung", "Jl. Asia Afrika No. 45", 1200000, "proyek", 5, "08:00", "17:00", 2],
     [toko, "Kurir Motor Antar Barang", "Kurir & Pengiriman", "Mengantar pesanan sembako ke pelanggan area Jakarta Selatan. Wajib punya motor dan SIM C. Bensin diganti.", "Jakarta Selatan", "Jl. Fatmawati No. 12", 130000, "hari", 1, "09:00", "17:00", 2],
   ];
-  const jobIds = jobs.map((j) => {
-    const [lat, lng] = coords[j[4]];
-    return insertJob.run(j[0], j[1], j[2], j[3], j[4], j[5], j[6], j[7], isoDatePlus(j[8]), j[9], j[10], j[11], lat, lng)
-      .lastInsertRowid;
-  });
 
-  // Contoh "deal": Budi sudah diterima di lowongan bongkar muat, lengkap dengan chat.
-  const deal = db
-    .prepare("INSERT INTO applications (job_id, worker_id, message, status) VALUES (?, ?, ?, 'diterima')")
-    .run(jobIds[0], budi, "Saya biasa bongkar muat di pasar, siap datang pagi.").lastInsertRowid;
-  const insertMsg = db.prepare("INSERT INTO messages (application_id, sender_id, body) VALUES (?, ?, ?)");
-  insertMsg.run(deal, toko, "Halo Pak Budi, lamaran diterima. Besok datang jam 08.00 ya.");
-  insertMsg.run(deal, budi, "Siap, Pak. Saya berangkat dari Pasar Minggu.");
+  const stmts: InStatement[] = [
+    ...users.map(([id, name, email, phone, role, city, bio]) => ({
+      sql: "INSERT INTO users (id, name, email, phone, password_hash, role, city, bio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      args: [id, name, email, phone, pw, role, city, bio],
+    })),
+    ...jobs.map((j, i) => ({
+      sql: `INSERT INTO jobs
+        (id, employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots, lat, lng)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [i + 1, j[0], j[1], j[2], j[3], j[4], j[5], j[6], j[7], isoDatePlus(j[8]), j[9], j[10], j[11], ...coords[j[4]]],
+    })),
+    // Contoh "deal": Budi sudah diterima di lowongan bongkar muat, lengkap dengan chat.
+    {
+      sql: "INSERT INTO applications (id, job_id, worker_id, message, status) VALUES (1, 1, ?, ?, 'diterima')",
+      args: [budi, "Saya biasa bongkar muat di pasar, siap datang pagi."],
+    },
+    {
+      sql: "INSERT INTO messages (application_id, sender_id, body) VALUES (1, ?, ?), (1, ?, ?)",
+      args: [toko, "Halo Pak Budi, lamaran diterima. Besok datang jam 08.00 ya.", budi, "Siap, Pak. Saya berangkat dari Pasar Minggu."],
+    },
+  ];
+  try {
+    await db.batch(stmts, "write");
+  } catch {
+    // Instance lain sudah mengisi data demo lebih dulu (id bentrok) — abaikan.
+  }
 }

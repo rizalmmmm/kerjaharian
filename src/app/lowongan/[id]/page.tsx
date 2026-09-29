@@ -12,7 +12,7 @@ import { unreadCounts } from "@/lib/deal";
 async function load(params: Promise<{ id: string }>) {
   const { id } = await params;
   const jobId = Number(id);
-  const job = Number.isInteger(jobId) ? getJob(jobId) : null;
+  const job = Number.isInteger(jobId) ? await getJob(jobId) : null;
   if (!job) notFound();
   return job;
 }
@@ -107,7 +107,7 @@ async function ApplyPanel({ jobId, status }: { jobId: number; status: "buka" | "
     );
   }
 
-  const application = getApplication(jobId, user.id);
+  const application = await getApplication(jobId, user.id);
   if (application) {
     return (
       <div className="card p-5">
@@ -171,9 +171,8 @@ function OwnerPanel({ jobId, status }: { jobId: number; status: "buka" | "tutup"
   );
 }
 
-function ApplicantList({ jobId, jobTitle, ownerId }: { jobId: number; jobTitle: string; ownerId: number }) {
-  const applicants = listApplicants(jobId);
-  const unread = unreadCounts(ownerId);
+async function ApplicantList({ jobId, jobTitle, ownerId }: { jobId: number; jobTitle: string; ownerId: number }) {
+  const [applicants, unread] = await Promise.all([listApplicants(jobId), unreadCounts(ownerId)]);
   return (
     <section className="card p-6 lg:col-span-2">
       <h2 className="text-lg font-bold">Pelamar ({applicants.length})</h2>

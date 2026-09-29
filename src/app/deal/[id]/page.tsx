@@ -16,15 +16,15 @@ function waLink(phone: string) {
 export default async function DealPage(props: PageProps<"/deal/[id]">) {
   const user = await requireUser();
   const id = Number((await props.params).id);
-  const deal = Number.isInteger(id) ? getDealForUser(id, user.id) : null;
+  const deal = Number.isInteger(id) ? await getDealForUser(id, user.id) : null;
   if (!deal) notFound();
 
   const isWorker = user.id === deal.worker_id;
   const other = isWorker
     ? { id: deal.employer_id, name: deal.employer_name, phone: deal.employer_phone, role: "pemberi_kerja" as const }
     : { id: deal.worker_id, name: deal.worker_name, phone: deal.worker_phone, role: "pekerja" as const };
-  const messages = listMessages(deal.id);
-  if (messages.length) markRead(deal.id, user.id, messages[messages.length - 1].id);
+  const messages = await listMessages(deal.id);
+  if (messages.length) await markRead(deal.id, user.id, messages[messages.length - 1].id);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">

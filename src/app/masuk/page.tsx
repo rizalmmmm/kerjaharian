@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/forms";
 import { getCurrentUser } from "@/lib/auth";
 import { login } from "@/lib/actions";
+import { DEMO_ENABLED } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Masuk" };
 
@@ -44,10 +45,12 @@ export default async function LoginPage(props: PageProps<"/masuk">) {
           </div>
         </ActionForm>
       </div>
-      <p className="mt-4 rounded-lg bg-slate-100 p-3 text-xs text-slate-600">
-        Akun demo (sandi <code>demo1234</code>): <code>toko@demo.id</code>, <code>event@demo.id</code> (pemberi kerja),{" "}
-        <code>budi@demo.id</code> (pekerja).
-      </p>
+      {DEMO_ENABLED && (
+        <p className="mt-4 rounded-lg bg-slate-100 p-3 text-xs text-slate-600">
+          Akun demo (sandi <code>demo1234</code>): <code>toko@demo.id</code>, <code>event@demo.id</code> (pemberi
+          kerja), <code>budi@demo.id</code> (pekerja).
+        </p>
+      )}
     </div>
   );
 }
