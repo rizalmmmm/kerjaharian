@@ -101,6 +101,23 @@ Fitur verifikasi email aktif setelah langkah ini. Paket gratis Resend: 3.000 ema
 6. **Redeploy**. Pengguna baru otomatis menerima email verifikasi; pengguna lama bisa klik
    "Kirim ulang email verifikasi" di dasbor.
 
+## 5. (Opsional) Verifikasi nomor WhatsApp via Fonnte
+
+Pengguna menerima kode 6 digit di WhatsApp dan mendapat lencana **WA terverifikasi**.
+Biaya: paket Fonnte mulai ±Rp25.000–66.000/bulan (cek harga terbaru di fonnte.com).
+
+1. Siapkan **nomor WhatsApp khusus** untuk mengirim OTP (jangan nomor pribadi — nomor gateway
+   tidak resmi berisiko diblokir WhatsApp bila mengirim terlalu banyak).
+2. Daftar di <https://fonnte.com>, buka **Device → Add Device**, masukkan nomor tadi, lalu
+   **Connect** dan pindai QR dari aplikasi WhatsApp di HP (seperti WhatsApp Web).
+3. Pilih paket berlangganan (versi gratis hanya untuk uji coba), lalu salin **Token** device.
+4. Di Vercel → **Settings → Environments → Production → Environment Variables**, tambahkan
+   `FONNTE_TOKEN` (Secret) berisi token tersebut, lalu **Redeploy**.
+5. Kartu "Verifikasi nomor WhatsApp" otomatis muncul di dasbor pengguna yang belum terverifikasi.
+
+Kode berlaku 5 menit, maks. 5 kali salah, kirim ulang tiap 60 detik. Jika pengguna mengganti
+nomor HP di profil, status terverifikasi dihapus dan harus diverifikasi ulang.
+
 ## Pengembangan lokal
 
 Tanpa variabel Turso, aplikasi memakai file lokal `data/kerjaharian.db`, jadi cukup:

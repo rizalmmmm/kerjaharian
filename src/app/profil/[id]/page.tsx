@@ -41,7 +41,8 @@ export default async function ProfilePage(props: PageProps<"/profil/[id]">) {
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-extrabold">{profile.name}</h1>
-            {!!profile.email_verified && <VerifiedBadge label="Terverifikasi" />}
+            {!!profile.phone_verified && <VerifiedBadge label="WA terverifikasi" variant="wa" />}
+            {!!profile.email_verified && <VerifiedBadge label="Email terverifikasi" />}
           </div>
           <p className="text-slate-600">
             {isWorker ? "Pekerja" : "Pemberi kerja"}

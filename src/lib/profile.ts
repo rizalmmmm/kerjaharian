@@ -25,6 +25,7 @@ export type PublicProfile = {
   instagram: string | null;
   facebook: string | null;
   email_verified: number;
+  phone_verified: number;
   created_at: string;
   jobs_done: number;
 };
@@ -75,7 +76,7 @@ export function getReviewAbout(applicationId: number, revieweeId: number) {
 export function getPublicProfile(userId: number): Promise<PublicProfile | null> {
   return get<PublicProfile>(
     `SELECT u.id, u.name, u.role, u.city, u.bio, u.avatar_id, u.instagram, u.facebook, u.created_at,
-            u.email_verified_at IS NOT NULL AS email_verified,
+            u.email_verified_at IS NOT NULL AS email_verified, u.phone_verified_at IS NOT NULL AS phone_verified,
             (SELECT COUNT(*) FROM applications a JOIN jobs j ON j.id = a.job_id
              WHERE a.status = 'diterima' AND j.work_date < date('now')
                AND (a.worker_id = u.id OR j.employer_id = u.id)) AS jobs_done

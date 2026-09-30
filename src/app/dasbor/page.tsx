@@ -7,6 +7,9 @@ import { requireUser, type User } from "@/lib/auth";
 import { resendVerification, updateProfile } from "@/lib/actions";
 import { VerifiedBadge } from "@/components/verified-badge";
 import { emailEnabled } from "@/lib/email";
+import { whatsappEnabled } from "@/lib/whatsapp";
+import { activeOtp } from "@/lib/phone-verification";
+import { WhatsAppVerify } from "@/components/whatsapp-verify";
 import { listPhotos } from "@/lib/profile";
 import { PhotoManager } from "@/components/photo-manager";
 import { WAGE_UNITS, formatRupiah, formatTanggal } from "@/lib/constants";
@@ -17,13 +20,18 @@ export const metadata: Metadata = { title: "Dasbor" };
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const portfolio = await listPhotos(user.id, "portfolio");
+  const [portfolio, otp] = await Promise.all([listPhotos(user.id, "portfolio"), activeOtp(user.id)]);
 
   return (
     <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[1fr_340px]">
       <div>
         <h1 className="text-2xl font-extrabold">Halo, {user.name.split(" ")[0]} 👋</h1>
         <p className="text-slate-600">{user.role === "pekerja" ? "Akun pekerja" : "Akun pemberi kerja"}</p>
+        {!user.phone_verified_at && whatsappEnabled() && (
+          <div className="mt-4">
+            <WhatsAppVerify phone={user.phone} codeSentTo={otp?.phone ?? null} />
+          </div>
+        )}
         {!user.email_verified_at && emailEnabled() && (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p className="font-semibold text-amber-900">Verifikasi email Anda</p>
@@ -80,7 +88,8 @@ export default async function DashboardPage() {
         </ActionForm>
         <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           {user.email}
-          {user.email_verified_at && <VerifiedBadge label="Terverifikasi" />}
+          {user.email_verified_at && <VerifiedBadge label="Email terverifikasi" />}
+          {user.phone_verified_at && <VerifiedBadge label="WA terverifikasi" variant="wa" />}
         </p>
       </aside>
     </div>
