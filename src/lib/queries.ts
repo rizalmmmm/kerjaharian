@@ -75,6 +75,7 @@ export type Applicant = {
   city: string;
   bio: string;
   email_verified: number;
+  phone_verified: number;
   avatar_id: string | null;
   message: string;
   status: ApplicationStatus;
@@ -83,7 +84,7 @@ export type Applicant = {
 
 export function listApplicants(jobId: number): Promise<Applicant[]> {
   return all<Applicant>(
-    `SELECT a.id, a.worker_id, u.name, u.phone, u.city, u.bio, u.email_verified_at IS NOT NULL AS email_verified, u.avatar_id, a.message, a.status, a.created_at
+    `SELECT a.id, a.worker_id, u.name, u.phone, u.city, u.bio, u.email_verified_at IS NOT NULL AS email_verified, u.phone_verified_at IS NOT NULL AS phone_verified, u.avatar_id, a.message, a.status, a.created_at
      FROM applications a JOIN users u ON u.id = a.worker_id
      WHERE a.job_id = ? ORDER BY a.created_at ASC, a.id ASC`,
     [jobId],

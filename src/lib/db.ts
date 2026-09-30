@@ -109,6 +109,15 @@ CREATE TABLE IF NOT EXISTS photos (
 
 CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id, kind);
 
+CREATE TABLE IF NOT EXISTS phone_otps (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  phone TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS email_tokens (
   token_hash TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -134,7 +143,7 @@ async function migrate(db: Client) {
   if (!cols.includes("lng")) await db.execute("ALTER TABLE jobs ADD COLUMN lng REAL");
   const userCols = (await db.execute("PRAGMA table_info(users)")).rows.map((r) => String(r.name));
   if (!userCols.includes("email_verified_at")) await db.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
-  for (const col of ["avatar_id", "instagram", "facebook"]) {
+  for (const col of ["avatar_id", "instagram", "facebook", "phone_verified_at"]) {
     if (!userCols.includes(col)) await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
   }
 }
@@ -247,7 +256,7 @@ async function seed(db: Client) {
 
   const stmts: InStatement[] = [
     ...users.map(([id, name, email, phone, role, city, bio]) => ({
-      sql: "INSERT INTO users (id, name, email, phone, password_hash, role, city, bio, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+      sql: "INSERT INTO users (id, name, email, phone, password_hash, role, city, bio, email_verified_at, phone_verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
       args: [id, name, email, phone, pw, role, city, bio],
     })),
     ...jobs.map((j, i) => ({

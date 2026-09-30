@@ -20,6 +20,7 @@ Marketplace kerja harian: mempertemukan **pemberi kerja** dengan **pekerja haria
   lencana terverifikasi, jumlah pekerjaan selesai, dan daftar ulasan. Foto dikompres di browser dan disimpan
   di database (tanpa layanan storage tambahan).
 - **Verifikasi email** gratis via Resend (opsional, lihat `docs/DEPLOY.md`).
+- **Verifikasi nomor WhatsApp** (kode OTP 6 digit) via Fonnte, lencana "WA terverifikasi" (opsional).
 
 ## Teknologi
 

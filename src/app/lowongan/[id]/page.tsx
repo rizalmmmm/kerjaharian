@@ -209,7 +209,8 @@ async function ApplicantList({ jobId, jobTitle, ownerId }: { jobId: number; jobT
                       {a.name}
                     </Link>
                     <StatusBadge status={a.status} />
-                    {!!a.email_verified && <VerifiedBadge label="Terverifikasi" />}
+                    {!!a.phone_verified && <VerifiedBadge label="WA terverifikasi" variant="wa" />}
+                    {!!a.email_verified && <VerifiedBadge label="Email terverifikasi" />}
                   </div>
                   <div className="text-sm text-slate-500">
                     {a.city || "—"} · {a.phone}

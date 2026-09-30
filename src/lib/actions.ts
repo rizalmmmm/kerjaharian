@@ -9,6 +9,8 @@ import { CATEGORIES, WAGE_UNITS, type Role } from "./constants";
 import { resendWaitSeconds, sendVerificationEmail } from "./verification";
 import { canReview, getDealForUser } from "./deal";
 import { normalizeHandle } from "./profile";
+import { sendPhoneOtp, verifyPhoneOtp } from "./phone-verification";
+import { normalizePhone } from "./whatsapp";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -196,6 +198,11 @@ export async function updateProfile(_: FormState, fd: FormData): Promise<FormSta
   const facebook = normalizeHandle(str(fd, "facebook"), "facebook");
   if (instagram === null) return { error: "Username Instagram tidak valid." };
   if (facebook === null) return { error: "Username/tautan Facebook tidak valid." };
+  if (normalizePhone(phone) !== normalizePhone(user.phone)) {
+    // Nomor berubah: status verifikasi WhatsApp harus diulang.
+    await run("UPDATE users SET phone_verified_at = NULL WHERE id = ?", [user.id]);
+    await run("DELETE FROM phone_otps WHERE user_id = ?", [user.id]);
+  }
   await run("UPDATE users SET name = ?, phone = ?, city = ?, bio = ?, instagram = ?, facebook = ? WHERE id = ?", [
     name,
     phone,
@@ -228,4 +235,19 @@ export async function submitReview(_: FormState, fd: FormData): Promise<FormStat
   revalidatePath(`/deal/${deal.id}`);
   revalidatePath(`/profil/${revieweeId}`);
   return { ok: "Terima kasih! Ulasan Anda tersimpan." };
+}
+
+export async function requestPhoneOtp(): Promise<FormState> {
+  const user = await requireUser();
+  if (user.phone_verified_at) return { ok: "Nomor WhatsApp Anda sudah terverifikasi." };
+  const res = await sendPhoneOtp(user);
+  revalidatePath("/dasbor");
+  return res;
+}
+
+export async function confirmPhoneOtp(_: FormState, fd: FormData): Promise<FormState> {
+  const user = await requireUser();
+  const res = await verifyPhoneOtp(user, str(fd, "code").replace(/\s/g, ""));
+  if (res.ok) revalidatePath("/", "layout");
+  return res;
 }
