@@ -100,14 +100,14 @@ async function ApplyPanel({ jobId, status }: { jobId: number; status: "buka" | "
   if (!user) {
     return (
       <div className="card p-5">
-        <h2 className="font-bold">Tertarik dengan pekerjaan ini?</h2>
-        <p className="mt-1 text-sm text-slate-600">Masuk atau daftar sebagai pekerja untuk melamar.</p>
-        <div className="mt-4 flex gap-2">
-          <Link href={`/masuk?next=/lowongan/${jobId}`} className="btn-primary flex-1">
-            Masuk
+        <h2 className="text-xl font-bold">Mau kerja ini? ✋</h2>
+        <p className="mt-1 text-slate-600">Daftar dulu, gratis. Cukup nama & nomor HP.</p>
+        <div className="mt-4 grid gap-2">
+          <Link href={`/daftar?peran=pekerja&next=/lowongan/${jobId}`} className="btn-big btn-primary">
+            ✍️ Daftar & Lamar
           </Link>
-          <Link href={`/daftar?peran=pekerja&next=/lowongan/${jobId}`} className="btn-outline flex-1">
-            Daftar
+          <Link href={`/masuk?next=/lowongan/${jobId}`} className="btn-outline">
+            Sudah punya akun? Masuk
           </Link>
         </div>
       </div>
@@ -150,20 +150,26 @@ async function ApplyPanel({ jobId, status }: { jobId: number; status: "buka" | "
 
   return (
     <div className="card p-5">
-      <h2 className="font-bold">Lamar pekerjaan ini</h2>
-      <ActionForm action={applyJob} submitLabel="Kirim lamaran" pendingLabel="Mengirim…" className="mt-3 grid gap-3">
+      <h2 className="text-xl font-bold">Mau kerja ini? ✋</h2>
+      <ActionForm
+        action={applyJob}
+        submitLabel="✋ Saya Mau Kerja Ini"
+        pendingLabel="Mengirim…"
+        submitClassName="btn-big btn-primary"
+        className="mt-3 grid gap-3"
+      >
         <input type="hidden" name="job_id" value={jobId} />
         <div>
           <label htmlFor="message" className="label">
-            Pesan untuk pemberi kerja (opsional)
+            Pesan singkat (boleh kosong)
           </label>
           <textarea
             id="message"
             name="message"
-            rows={4}
+            rows={3}
             maxLength={1000}
             className="input"
-            placeholder="Ceritakan pengalaman singkat Anda…"
+            placeholder="mis. Saya sudah biasa kerja bangunan"
           />
         </div>
       </ActionForm>

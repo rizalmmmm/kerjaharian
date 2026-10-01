@@ -25,7 +25,7 @@ export const viewport: Viewport = { themeColor: "#047857" };
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="id" className={`${jakarta.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col font-sans">
+      <body className="flex min-h-full flex-col pb-20 font-sans sm:pb-0">
         <Header />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-slate-200 bg-white">

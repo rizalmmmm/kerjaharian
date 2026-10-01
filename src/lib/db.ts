@@ -3,6 +3,7 @@ import type { Client, InArgs, InStatement } from "@libsql/client";
 import fs from "node:fs";
 import path from "node:path";
 import { hashPassword } from "./password";
+import { normalizePhone } from "./phone";
 
 /**
  * Database: libSQL/SQLite.
@@ -143,9 +144,31 @@ async function migrate(db: Client) {
   if (!cols.includes("lng")) await db.execute("ALTER TABLE jobs ADD COLUMN lng REAL");
   const userCols = (await db.execute("PRAGMA table_info(users)")).rows.map((r) => String(r.name));
   if (!userCols.includes("email_verified_at")) await db.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
-  for (const col of ["avatar_id", "instagram", "facebook", "phone_verified_at"]) {
+  for (const col of ["avatar_id", "instagram", "facebook", "phone_verified_at", "phone_norm"]) {
     if (!userCols.includes(col)) await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
   }
+}
+
+/**
+ * Nomor HP dipakai untuk masuk, jadi disimpan juga dalam bentuk baku (628…) dan dibuat unik.
+ * Akun lama diisi otomatis; bila ada nomor ganda, hanya akun pertama yang memakainya untuk login.
+ */
+async function backfillPhoneNorm(db: Client) {
+  const rows = (await db.execute("SELECT id, phone FROM users WHERE phone_norm IS NULL ORDER BY id")).rows;
+  if (rows.length) {
+    const taken = new Set(
+      (await db.execute("SELECT phone_norm FROM users WHERE phone_norm IS NOT NULL")).rows.map((r) => String(r.phone_norm)),
+    );
+    const updates: InStatement[] = [];
+    for (const r of rows) {
+      const norm = normalizePhone(String(r.phone));
+      if (!norm || taken.has(norm)) continue;
+      taken.add(norm);
+      updates.push({ sql: "UPDATE users SET phone_norm = ? WHERE id = ?", args: [norm, Number(r.id)] });
+    }
+    if (updates.length) await db.batch(updates, "write");
+  }
+  await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_norm ON users(phone_norm) WHERE phone_norm IS NOT NULL");
 }
 
 const globalForDb = globalThis as unknown as { khDb?: Promise<Client> };
@@ -175,6 +198,7 @@ async function open(): Promise<Client> {
   await db.executeMultiple(SCHEMA);
   await migrate(db);
   if (DEMO_ENABLED) await seed(db);
+  await backfillPhoneNorm(db);
   return db;
 }
 

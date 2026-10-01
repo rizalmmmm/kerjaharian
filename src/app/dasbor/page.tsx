@@ -7,6 +7,7 @@ import { requireUser, type User } from "@/lib/auth";
 import { resendVerification, updateProfile } from "@/lib/actions";
 import { VerifiedBadge } from "@/components/verified-badge";
 import { emailEnabled } from "@/lib/email";
+import { hasEmail } from "@/lib/phone";
 import { whatsappEnabled } from "@/lib/whatsapp";
 import { activeOtp } from "@/lib/phone-verification";
 import { WhatsAppVerify } from "@/components/whatsapp-verify";
@@ -25,19 +26,21 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[1fr_340px]">
       <div>
-        <h1 className="text-2xl font-extrabold">Halo, {user.name.split(" ")[0]} 👋</h1>
-        <p className="text-slate-600">{user.role === "pekerja" ? "Akun pekerja" : "Akun pemberi kerja"}</p>
+        <h1 className="text-3xl font-extrabold">Halo, {user.name.split(" ")[0]} 👋</h1>
+        <p className="text-lg text-slate-600">
+          {user.role === "pekerja" ? "🔍 Akun pencari kerja" : "🧑‍🔧 Akun pemberi kerja"}
+        </p>
         {!user.phone_verified_at && whatsappEnabled() && (
           <div className="mt-4">
             <WhatsAppVerify phone={user.phone} codeSentTo={otp?.phone ?? null} />
           </div>
         )}
-        {!user.email_verified_at && emailEnabled() && (
+        {hasEmail(user.email) && !user.email_verified_at && emailEnabled() && (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p className="font-semibold text-amber-900">Verifikasi email Anda</p>
             <p className="mt-1 text-sm text-amber-800">
-              Kami sudah mengirim tautan verifikasi ke <strong>{user.email}</strong>. Akun terverifikasi mendapat lencana{" "}
-              <VerifiedBadge label="Terverifikasi" /> sehingga lebih dipercaya.
+              Kami sudah mengirim tautan verifikasi ke <strong>{user.email}</strong>. Akun terverifikasi mendapat
+              lencana <VerifiedBadge label="Terverifikasi" /> sehingga lebih dipercaya.
             </p>
             <ActionForm
               action={resendVerification}
@@ -71,6 +74,13 @@ export default async function DashboardPage() {
         >
           <Field label="Nama" name="name" defaultValue={user.name} required />
           <Field label="Nomor HP / WhatsApp" name="phone" defaultValue={user.phone} required />
+          <Field
+            label="Email (tidak wajib)"
+            name="email"
+            type="email"
+            defaultValue={hasEmail(user.email) ? user.email : ""}
+            placeholder="nama@email.com"
+          />
           <Field label="Kota" name="city" defaultValue={user.city} />
           <div>
             <label htmlFor="bio" className="label">
@@ -78,7 +88,12 @@ export default async function DashboardPage() {
             </label>
             <textarea id="bio" name="bio" rows={3} maxLength={500} defaultValue={user.bio} className="input" />
           </div>
-          <Field label="Instagram (opsional)" name="instagram" defaultValue={user.instagram ?? ""} placeholder="@username" />
+          <Field
+            label="Instagram (opsional)"
+            name="instagram"
+            defaultValue={user.instagram ?? ""}
+            placeholder="@username"
+          />
           <Field
             label="Facebook (opsional)"
             name="facebook"
@@ -86,8 +101,8 @@ export default async function DashboardPage() {
             placeholder="username atau tautan profil"
           />
         </ActionForm>
-        <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          {user.email}
+        <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          {hasEmail(user.email) ? user.email : "Belum ada email (tidak wajib)"}
           {user.email_verified_at && <VerifiedBadge label="Email terverifikasi" />}
           {user.phone_verified_at && <VerifiedBadge label="WA terverifikasi" variant="wa" />}
         </p>
