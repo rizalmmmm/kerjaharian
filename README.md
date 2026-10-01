@@ -52,6 +52,13 @@ Buka http://localhost:3000. Database dibuat otomatis di `data/kerjaharian.db` (a
 | `event@demo.id` | Pemberi kerja  | `demo1234` |
 | `085712345678` / `budi@demo.id` | Pekerja | `demo1234` |
 
+## Data dummy
+
+Situs otomatis berisi **100 lowongan contoh yang sudah kedaluwarsa** (ditandai `is_dummy = 1`) agar tidak
+tampak kosong. Nomor HP pemberi kerja contoh dikosongkan dan akunnya tidak bisa dipakai masuk. Daftar
+lengkap & cara menghapusnya: **[docs/DATA-DUMMY.txt](docs/DATA-DUMMY.txt)**. Matikan dengan env
+`SEED_DUMMY_JOBS=0`.
+
 ## Struktur
 
 ```

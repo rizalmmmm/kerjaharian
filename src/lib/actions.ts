@@ -7,7 +7,7 @@ import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession, getCurrentUser, requireUser } from "./auth";
 import { CATEGORIES, WAGE_UNITS, type Role } from "./constants";
 import { resendWaitSeconds, sendVerificationEmail } from "./verification";
-import { canReview, getDealForUser } from "./deal";
+import { canReview, getDealForUser, todayWib } from "./deal";
 import { normalizeHandle } from "./profile";
 import { sendPhoneOtp, verifyPhoneOtp } from "./phone-verification";
 import { hasEmail, normalizePhone, placeholderEmail } from "./phone";
@@ -151,8 +151,11 @@ export async function applyJob(_: FormState, fd: FormData): Promise<FormState> {
   if (!user) redirect(`/masuk?next=/lowongan/${jobId}`);
   if (user.role !== "pekerja") return { error: "Hanya akun pekerja yang dapat melamar." };
 
-  const job = await get<{ status: string }>("SELECT status FROM jobs WHERE id = ?", [jobId]);
+  const job = await get<{ status: string; work_date: string }>("SELECT status, work_date FROM jobs WHERE id = ?", [
+    jobId,
+  ]);
   if (!job || job.status !== "buka") return { error: "Lowongan sudah ditutup." };
+  if (job.work_date < todayWib()) return { error: "Kerjaan ini sudah lewat tanggalnya." };
 
   const result = await run("INSERT OR IGNORE INTO applications (job_id, worker_id, message) VALUES (?, ?, ?)", [
     jobId,
@@ -236,7 +239,16 @@ export async function updateProfile(_: FormState, fd: FormData): Promise<FormSta
   }
   await run(
     "UPDATE users SET name = ?, phone = ?, phone_norm = ?, city = ?, bio = ?, instagram = ?, facebook = ? WHERE id = ?",
-    [name, phone, phoneNorm, str(fd, "city"), str(fd, "bio").slice(0, 500), instagram || null, facebook || null, user.id],
+    [
+      name,
+      phone,
+      phoneNorm,
+      str(fd, "city"),
+      str(fd, "bio").slice(0, 500),
+      instagram || null,
+      facebook || null,
+      user.id,
+    ],
   );
   if (emailChanged && email) await sendVerificationEmail({ id: user.id, name, email });
   revalidatePath("/", "layout");

@@ -33,8 +33,8 @@ const JOB_SELECT = `
 
 export type JobFilter = { q?: string; category?: string; city?: string };
 
-export function listOpenJobs(filter: JobFilter = {}, limit = 50): Promise<Job[]> {
-  const where = ["j.status = 'buka'", "j.work_date >= date('now')"];
+function filterSql(filter: JobFilter, base: string[]) {
+  const where = [...base];
   const args: string[] = [];
   if (filter.q) {
     where.push("(j.title LIKE ? OR j.description LIKE ?)");
@@ -48,10 +48,18 @@ export function listOpenJobs(filter: JobFilter = {}, limit = 50): Promise<Job[]>
     where.push("j.city LIKE ?");
     args.push(`%${filter.city}%`);
   }
-  return all<Job>(
-    `${JOB_SELECT} WHERE ${where.join(" AND ")} ORDER BY j.work_date ASC, j.id DESC LIMIT ${Math.floor(limit)}`,
-    args,
-  );
+  return { where: where.join(" AND "), args };
+}
+
+export function listOpenJobs(filter: JobFilter = {}, limit = 50): Promise<Job[]> {
+  const { where, args } = filterSql(filter, ["j.status = 'buka'", "j.work_date >= date('now')"]);
+  return all<Job>(`${JOB_SELECT} WHERE ${where} ORDER BY j.work_date ASC, j.id DESC LIMIT ${Math.floor(limit)}`, args);
+}
+
+/** Kerjaan yang tanggalnya sudah lewat (riwayat), terbaru dulu. */
+export function listPastJobs(filter: JobFilter = {}, limit = 12): Promise<Job[]> {
+  const { where, args } = filterSql(filter, ["j.work_date < date('now')"]);
+  return all<Job>(`${JOB_SELECT} WHERE ${where} ORDER BY j.work_date DESC, j.id DESC LIMIT ${Math.floor(limit)}`, args);
 }
 
 export function getJob(id: number): Promise<Job | null> {

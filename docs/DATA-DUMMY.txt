@@ -1,0 +1,188 @@
+REKAP DATA DUMMY (CONTOH) — kerja-harian.id
+========================================================================
+
+Ringkasan
+---------
+- 100 lowongan contoh, SEMUA SUDAH KEDALUWARSA (tanggal kerja 3 Jul 2026 s.d. 28 Sep 2026).
+- Status lowongan: 'tutup' -> tidak bisa dilamar. Tampil di halaman Cari Kerja pada bagian
+  "Kerjaan yang sudah lewat" dengan label "Sudah lewat".
+- 18 akun pemberi kerja contoh:
+    * TANPA nomor HP (kolom phone kosong) -> nomor tidak pernah tampil di mana pun.
+    * Email pengganti @contoh.invalid (tidak bisa menerima email).
+    * Kata sandi tidak valid -> akun TIDAK BISA dipakai masuk.
+- Semua ditandai kolom is_dummy = 1 (tabel users dan jobs); lowongan juga punya kode
+  dummy_key DUMMY-001 s.d. DUMMY-100.
+- Dimasukkan otomatis SEKALI saat aplikasi pertama jalan (penanda: app_meta.key = 'dummy_jobs_v1').
+  Jika dihapus, data ini TIDAK akan dimasukkan lagi.
+- Untuk mematikan sebelum terlanjur masuk: set env SEED_DUMMY_JOBS=0 di Vercel lalu Redeploy.
+- Sumber data: src/lib/dummy-jobs.json
+
+Cara menghapus semua data dummy
+-------------------------------
+Turso dashboard -> database kerjaharian -> Edit Data / SQL Console (atau: turso db shell kerjaharian),
+lalu jalankan:
+
+  DELETE FROM jobs  WHERE is_dummy = 1;
+  DELETE FROM users WHERE is_dummy = 1;
+
+Cek sisa data dummy:  SELECT COUNT(*) FROM jobs WHERE is_dummy = 1;
+
+A. AKUN PEMBERI KERJA DUMMY (18)
+------------------------------------------------------------------------
+No  Nama                              Kota             No. HP    Email
+1   Toko Bangunan Sumber Makmur       Klaten           (kosong)  dummy-01@contoh.invalid
+2   Kebun Salak Pak Harjo             Sleman           (kosong)  dummy-02@contoh.invalid
+3   Warung Makan Bu Tini              Bantul           (kosong)  dummy-03@contoh.invalid
+4   CV Bordir Tasik Indah             Tasikmalaya      (kosong)  dummy-04@contoh.invalid
+5   Sawah Pak Dadang                  Cianjur          (kosong)  dummy-05@contoh.invalid
+6   UD Tani Makmur Bojonegoro         Bojonegoro       (kosong)  dummy-06@contoh.invalid
+7   Gudang Kopi Jember                Jember           (kosong)  dummy-07@contoh.invalid
+8   Homestay Osing Banyuwangi         Banyuwangi       (kosong)  dummy-08@contoh.invalid
+9   Bengkel Motor Lancar Jaya         Magelang         (kosong)  dummy-09@contoh.invalid
+10  Sanggar Rias Ayu                  Purworejo        (kosong)  dummy-10@contoh.invalid
+11  Pabrik Genteng Sokka              Kebumen          (kosong)  dummy-11@contoh.invalid
+12  Penyewaan Tenda Lombok Berkah     Lombok Tengah    (kosong)  dummy-12@contoh.invalid
+13  Villa Ubud Asri                   Gianyar          (kosong)  dummy-13@contoh.invalid
+14  Tambak Udang Maros                Maros            (kosong)  dummy-14@contoh.invalid
+15  Toko Elektronik Sinar Lampung     Lampung Selatan  (kosong)  dummy-15@contoh.invalid
+16  Konveksi Kediri Jaya              Kediri           (kosong)  dummy-16@contoh.invalid
+17  Studio Web Kampung Digital        Sleman           (kosong)  dummy-17@contoh.invalid
+18  Event Organizer Gema Ceria        Kediri           (kosong)  dummy-18@contoh.invalid
+
+
+B. LOWONGAN DUMMY (100) — semua sudah lewat & ditutup
+------------------------------------------------------------------------
+Kode       Tanggal      Judul                       Kategori                Kota             Upah                  Pemberi kerja
+DUMMY-001   3 Jul 2026  Panen Kopi                  Pertanian & Perkebunan  Jember           Rp120.000/hari        Gudang Kopi Jember
+DUMMY-002   4 Jul 2026  Input Data Penjualan        Programmer              Sleman           Rp110.000/hari        Studio Web Kampung Digital
+DUMMY-003   5 Jul 2026  Antar Sayur ke Pasar        Kurir & Pengiriman      Bantul           Rp100.000/hari        Warung Makan Bu Tini
+DUMMY-004   7 Jul 2026  Bersih Rumah Setelah Acara  Kebersihan              Gianyar          Rp95.000/hari         Villa Ubud Asri
+DUMMY-005   8 Jul 2026  Servis Pompa Air            Tukang Elektronik       Lampung Selatan  Rp135.000/proyek      Toko Elektronik Sinar Lampung
+DUMMY-006   8 Jul 2026  Bantu Cor Dak               Konstruksi & Renovasi   Klaten           Rp160.000/hari        Toko Bangunan Sumber Makmur
+DUMMY-007   9 Jul 2026  Rias Lamaran                Makeup (MUA)            Purworejo        Rp455.000/proyek      Sanggar Rias Ayu
+DUMMY-008  12 Jul 2026  Antar Galon Air             Kurir & Pengiriman      Bantul           Rp90.000/hari         Warung Makan Bu Tini
+DUMMY-009  12 Jul 2026  Antar Sayur ke Pasar        Kurir & Pengiriman      Bantul           Rp105.000/hari        Warung Makan Bu Tini
+DUMMY-010  15 Jul 2026  Bersih Villa                Kebersihan              Gianyar          Rp95.000/hari         Villa Ubud Asri
+DUMMY-011  15 Jul 2026  Ganti Oli & Tune Up         Tukang Mekanik          Bojonegoro       Rp100.000/hari        UD Tani Makmur Bojonegoro
+DUMMY-012  15 Jul 2026  Packing Kopi Bubuk          Gudang & Logistik       Jember           Rp85.000/hari         Gudang Kopi Jember
+DUMMY-013  17 Jul 2026  Rias Wisuda                 Makeup (MUA)            Kediri           Rp250.000/proyek      Event Organizer Gema Ceria
+DUMMY-014  19 Jul 2026  Kasir Toko Sementara        Retail & Toko           Klaten           Rp110.000/hari        Toko Bangunan Sumber Makmur
+DUMMY-015  20 Jul 2026  Tukang Cat Pagar            Konstruksi & Renovasi   Gianyar          Rp145.000/hari        Villa Ubud Asri
+DUMMY-016  20 Jul 2026  Rias Pengantin Adat Jawa    Makeup (MUA)            Kediri           Rp705.000/proyek      Event Organizer Gema Ceria
+DUMMY-017  20 Jul 2026  Servis TV Tabung            Tukang Elektronik       Lampung Selatan  Rp135.000/proyek      Toko Elektronik Sinar Lampung
+DUMMY-018  24 Jul 2026  Tukang Cat Pagar            Konstruksi & Renovasi   Gianyar          Rp140.000/hari        Villa Ubud Asri
+DUMMY-019  24 Jul 2026  Bantu Masak Hajatan         Rumah Makan & Katering  Kediri           Rp100.000/hari        Event Organizer Gema Ceria
+DUMMY-020  24 Jul 2026  Angkut Karung Gabah         Gudang & Logistik       Bojonegoro       Rp140.000/hari        UD Tani Makmur Bojonegoro
+DUMMY-021  25 Jul 2026  Rias Pengantin Adat Jawa    Makeup (MUA)            Kediri           Rp830.000/proyek      Event Organizer Gema Ceria
+DUMMY-022  26 Jul 2026  Penerima Tamu               Event                   Kediri           Rp25.000/jam          Event Organizer Gema Ceria
+DUMMY-023  26 Jul 2026  Tanam Jagung                Pertanian & Perkebunan  Bojonegoro       Rp105.000/hari        UD Tani Makmur Bojonegoro
+DUMMY-024  28 Jul 2026  Input Data Penjualan        Programmer              Sleman           Rp135.000/hari        Studio Web Kampung Digital
+DUMMY-025  29 Jul 2026  Servis TV Tabung            Tukang Elektronik       Lampung Selatan  Rp150.000/proyek      Toko Elektronik Sinar Lampung
+DUMMY-026  29 Jul 2026  Bersih Villa                Kebersihan              Gianyar          Rp95.000/hari         Villa Ubud Asri
+DUMMY-027  30 Jul 2026  Kuli Bangunan Rumah         Konstruksi & Renovasi   Gianyar          Rp135.000/hari        Villa Ubud Asri
+DUMMY-028  30 Jul 2026  Buat Website UMKM           Programmer              Sleman           Rp1.505.000/proyek    Studio Web Kampung Digital
+DUMMY-029  31 Jul 2026  Bantu Stok Opname           Retail & Toko           Lampung Selatan  Rp110.000/hari        Toko Elektronik Sinar Lampung
+DUMMY-030   1 Agu 2026  Cetak Genteng               Lainnya                 Kebumen          Rp115.000/hari        Pabrik Genteng Sokka
+DUMMY-031   1 Agu 2026  Pasang Tenda Hajatan        Event                   Lombok Tengah    Rp110.000/hari        Penyewaan Tenda Lombok Berkah
+DUMMY-032   2 Agu 2026  Rias Pengantin Adat Jawa    Makeup (MUA)            Purworejo        Rp825.000/proyek      Sanggar Rias Ayu
+DUMMY-033   5 Agu 2026  Rias Pengantin Adat Jawa    Makeup (MUA)            Kediri           Rp725.000/proyek      Event Organizer Gema Ceria
+DUMMY-034   5 Agu 2026  Pelayan Warung              Rumah Makan & Katering  Banyuwangi       Rp90.000/hari         Homestay Osing Banyuwangi
+DUMMY-035   6 Agu 2026  Pasang Instalasi Listrik    Tukang Elektronik       Lombok Tengah    Rp190.000/hari        Penyewaan Tenda Lombok Berkah
+DUMMY-036   6 Agu 2026  Petik Salak                 Pertanian & Perkebunan  Sleman           Rp95.000/hari         Kebun Salak Pak Harjo
+DUMMY-037   7 Agu 2026  Bantu Stok Opname           Retail & Toko           Lampung Selatan  Rp115.000/hari        Toko Elektronik Sinar Lampung
+DUMMY-038   9 Agu 2026  Ganti Oli & Tune Up         Tukang Mekanik          Magelang         Rp95.000/hari         Bengkel Motor Lancar Jaya
+DUMMY-039   9 Agu 2026  Bantu Pindahan Rumah        Lainnya                 Lombok Tengah    Rp125.000/hari        Penyewaan Tenda Lombok Berkah
+DUMMY-040  10 Agu 2026  Packing Kopi Bubuk          Gudang & Logistik       Jember           Rp100.000/hari        Gudang Kopi Jember
+DUMMY-041  10 Agu 2026  Jaga Toko Bangunan          Retail & Toko           Klaten           Rp115.000/hari        Toko Bangunan Sumber Makmur
+DUMMY-042  10 Agu 2026  Bantu Servis Motor          Tukang Mekanik          Magelang         Rp125.000/hari        Bengkel Motor Lancar Jaya
+DUMMY-043  13 Agu 2026  Bantu Stok Opname           Retail & Toko           Klaten           Rp105.000/hari        Toko Bangunan Sumber Makmur
+DUMMY-044  13 Agu 2026  Jaga Tambak Malam           Pertanian & Perkebunan  Maros            Rp140.000/hari        Tambak Udang Maros
+DUMMY-045  14 Agu 2026  Antar Sayur ke Pasar        Kurir & Pengiriman      Bantul           Rp105.000/hari        Warung Makan Bu Tini
+DUMMY-046  15 Agu 2026  Input Data Penjualan        Programmer              Sleman           Rp140.000/hari        Studio Web Kampung Digital
+DUMMY-047  16 Agu 2026  Panen Kopi                  Pertanian & Perkebunan  Jember           Rp120.000/hari        Gudang Kopi Jember
+DUMMY-048  16 Agu 2026  Jaga Parkir Acara           Lainnya                 Kediri           Rp75.000/hari         Event Organizer Gema Ceria
+DUMMY-049  17 Agu 2026  Rias Wisuda                 Makeup (MUA)            Kediri           Rp235.000/proyek      Event Organizer Gema Ceria
+DUMMY-050  17 Agu 2026  Rias Lamaran                Makeup (MUA)            Purworejo        Rp440.000/proyek      Sanggar Rias Ayu
+DUMMY-051  18 Agu 2026  Bersih Gudang               Kebersihan              Banyuwangi       Rp100.000/hari        Homestay Osing Banyuwangi
+DUMMY-052  19 Agu 2026  Kurir Paket Desa            Kurir & Pengiriman      Bantul           Rp125.000/hari        Warung Makan Bu Tini
+DUMMY-053  21 Agu 2026  Jaga Parkir Acara           Lainnya                 Lombok Tengah    Rp80.000/hari         Penyewaan Tenda Lombok Berkah
+DUMMY-054  21 Agu 2026  Pasang Keramik              Konstruksi & Renovasi   Klaten           Rp160.000/hari        Toko Bangunan Sumber Makmur
+DUMMY-055  23 Agu 2026  Antar Sayur ke Pasar        Kurir & Pengiriman      Bantul           Rp95.000/hari         Warung Makan Bu Tini
+DUMMY-056  23 Agu 2026  Tukang Cat Pagar            Konstruksi & Renovasi   Gianyar          Rp145.000/hari        Villa Ubud Asri
+DUMMY-057  24 Agu 2026  Bantu Stok Opname           Retail & Toko           Lampung Selatan  Rp125.000/hari        Toko Elektronik Sinar Lampung
+DUMMY-058  24 Agu 2026  Bersih Rumah Setelah Acara  Kebersihan              Gianyar          Rp100.000/hari        Villa Ubud Asri
+DUMMY-059  24 Agu 2026  Angkut Karung Gabah         Gudang & Logistik       Bojonegoro       Rp135.000/hari        UD Tani Makmur Bojonegoro
+DUMMY-060  24 Agu 2026  Crew Sound System           Event                   Kediri           Rp130.000/hari        Event Organizer Gema Ceria
+DUMMY-061  27 Agu 2026  Pelayan Warung              Rumah Makan & Katering  Bantul           Rp90.000/hari         Warung Makan Bu Tini
+DUMMY-062  27 Agu 2026  Jahit Seragam Borongan      Lainnya                 Kediri           Rp15.000/jam          Konveksi Kediri Jaya
+DUMMY-063  27 Agu 2026  Servis TV Tabung            Tukang Elektronik       Lampung Selatan  Rp150.000/proyek      Toko Elektronik Sinar Lampung
+DUMMY-064  28 Agu 2026  Cetak Genteng               Lainnya                 Kebumen          Rp105.000/hari        Pabrik Genteng Sokka
+DUMMY-065  28 Agu 2026  Kasir Toko Sementara        Retail & Toko           Klaten           Rp95.000/hari         Toko Bangunan Sumber Makmur
+DUMMY-066  29 Agu 2026  Bersih Gudang               Kebersihan              Banyuwangi       Rp90.000/hari         Homestay Osing Banyuwangi
+DUMMY-067  31 Agu 2026  Bantu Cor Dak               Konstruksi & Renovasi   Kebumen          Rp150.000/hari        Pabrik Genteng Sokka
+DUMMY-068   1 Sep 2026  Kurir Paket Desa            Kurir & Pengiriman      Bantul           Rp110.000/hari        Warung Makan Bu Tini
+DUMMY-069   2 Sep 2026  Input Data Penjualan        Programmer              Sleman           Rp130.000/hari        Studio Web Kampung Digital
+DUMMY-070   2 Sep 2026  Angkut Karung Gabah         Gudang & Logistik       Cianjur          Rp140.000/hari        Sawah Pak Dadang
+DUMMY-071   2 Sep 2026  Crew Sound System           Event                   Lombok Tengah    Rp120.000/hari        Penyewaan Tenda Lombok Berkah
+DUMMY-072   5 Sep 2026  Bantu Masak Hajatan         Rumah Makan & Katering  Banyuwangi       Rp115.000/hari        Homestay Osing Banyuwangi
+DUMMY-073   5 Sep 2026  Ganti Oli & Tune Up         Tukang Mekanik          Bojonegoro       Rp90.000/hari         UD Tani Makmur Bojonegoro
+DUMMY-074   6 Sep 2026  Ganti Oli & Tune Up         Tukang Mekanik          Bojonegoro       Rp90.000/hari         UD Tani Makmur Bojonegoro
+DUMMY-075   7 Sep 2026  Bantu Servis Motor          Tukang Mekanik          Bojonegoro       Rp120.000/hari        UD Tani Makmur Bojonegoro
+DUMMY-076   9 Sep 2026  Kupas Bawang Katering       Rumah Makan & Katering  Banyuwangi       Rp20.000/jam          Homestay Osing Banyuwangi
+DUMMY-077  10 Sep 2026  Perbaiki Toko Online        Programmer              Sleman           Rp750.000/proyek      Studio Web Kampung Digital
+DUMMY-078  10 Sep 2026  Petik Salak                 Pertanian & Perkebunan  Sleman           Rp100.000/hari        Kebun Salak Pak Harjo
+DUMMY-079  10 Sep 2026  Packing Kopi Bubuk          Gudang & Logistik       Jember           Rp85.000/hari         Gudang Kopi Jember
+DUMMY-080  11 Sep 2026  Penerima Tamu               Event                   Lombok Tengah    Rp25.000/jam          Penyewaan Tenda Lombok Berkah
+DUMMY-081  12 Sep 2026  Bersih Rumah Setelah Acara  Kebersihan              Kediri           Rp95.000/hari         Event Organizer Gema Ceria
+DUMMY-082  12 Sep 2026  Crew Sound System           Event                   Lombok Tengah    Rp150.000/hari        Penyewaan Tenda Lombok Berkah
+DUMMY-083  12 Sep 2026  Bantu Masak Hajatan         Rumah Makan & Katering  Kediri           Rp105.000/hari        Event Organizer Gema Ceria
+DUMMY-084  14 Sep 2026  Kasir Toko Sementara        Retail & Toko           Klaten           Rp95.000/hari         Toko Bangunan Sumber Makmur
+DUMMY-085  16 Sep 2026  Bongkar Muat Semen          Gudang & Logistik       Klaten           Rp125.000/hari        Toko Bangunan Sumber Makmur
+DUMMY-086  18 Sep 2026  Buat Website UMKM           Programmer              Sleman           Rp1.385.000/proyek    Studio Web Kampung Digital
+DUMMY-087  18 Sep 2026  Kupas Bawang Katering       Rumah Makan & Katering  Banyuwangi       Rp20.000/jam          Homestay Osing Banyuwangi
+DUMMY-088  19 Sep 2026  Angkut Karung Gabah         Gudang & Logistik       Cianjur          Rp130.000/hari        Sawah Pak Dadang
+DUMMY-089  19 Sep 2026  Pasang Instalasi Listrik    Tukang Elektronik       Lampung Selatan  Rp180.000/hari        Toko Elektronik Sinar Lampung
+DUMMY-090  20 Sep 2026  Bantu Servis Motor          Tukang Mekanik          Magelang         Rp110.000/hari        Bengkel Motor Lancar Jaya
+DUMMY-091  21 Sep 2026  Panen Kopi                  Pertanian & Perkebunan  Jember           Rp120.000/hari        Gudang Kopi Jember
+DUMMY-092  21 Sep 2026  Bersih Villa                Kebersihan              Gianyar          Rp105.000/hari        Villa Ubud Asri
+DUMMY-093  22 Sep 2026  Antar Sayur ke Pasar        Kurir & Pengiriman      Bantul           Rp100.000/hari        Warung Makan Bu Tini
+DUMMY-094  25 Sep 2026  Crew Sound System           Event                   Kediri           Rp135.000/hari        Event Organizer Gema Ceria
+DUMMY-095  26 Sep 2026  Kuli Bangunan Rumah         Konstruksi & Renovasi   Gianyar          Rp120.000/hari        Villa Ubud Asri
+DUMMY-096  27 Sep 2026  Jahit Seragam Borongan      Lainnya                 Tasikmalaya      Rp15.000/jam          CV Bordir Tasik Indah
+DUMMY-097  27 Sep 2026  Crew Sound System           Event                   Lombok Tengah    Rp130.000/hari        Penyewaan Tenda Lombok Berkah
+DUMMY-098  27 Sep 2026  Servis Pompa Air            Tukang Elektronik       Lombok Tengah    Rp135.000/proyek      Penyewaan Tenda Lombok Berkah
+DUMMY-099  28 Sep 2026  Kupas Bawang Katering       Rumah Makan & Katering  Banyuwangi       Rp20.000/jam          Homestay Osing Banyuwangi
+DUMMY-100  28 Sep 2026  Petik Salak                 Pertanian & Perkebunan  Sleman           Rp110.000/hari        Kebun Salak Pak Harjo
+
+Jumlah per kategori:
+  - Pertanian & Perkebunan     8
+  - Kurir & Pengiriman         8
+  - Kebersihan                 8
+  - Konstruksi & Renovasi      8
+  - Makeup (MUA)               8
+  - Gudang & Logistik          8
+  - Retail & Toko              8
+  - Rumah Makan & Katering     8
+  - Event                      8
+  - Programmer                 7
+  - Tukang Elektronik          7
+  - Tukang Mekanik             7
+  - Lainnya                    7
+
+Jumlah per kota:
+  - Kediri                     13
+  - Sleman                     10
+  - Gianyar                    10
+  - Bantul                     9
+  - Lombok Tengah              9
+  - Lampung Selatan            8
+  - Klaten                     8
+  - Bojonegoro                 7
+  - Banyuwangi                 7
+  - Jember                     6
+  - Purworejo                  3
+  - Kebumen                    3
+  - Magelang                   3
+  - Cianjur                    2
+  - Maros                      1
+  - Tasikmalaya                1

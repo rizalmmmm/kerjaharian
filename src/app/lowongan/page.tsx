@@ -3,7 +3,7 @@ import { JobCard } from "@/components/job-card";
 import Link from "next/link";
 import { categoryIcon } from "@/lib/category-icons";
 import { CATEGORIES } from "@/lib/constants";
-import { listCities, listOpenJobs } from "@/lib/queries";
+import { listCities, listOpenJobs, listPastJobs } from "@/lib/queries";
 
 export const metadata: Metadata = { title: "Cari Kerja Harian" };
 
@@ -16,7 +16,11 @@ export default async function JobsPage(props: PageProps<"/lowongan">) {
   const q = one(sp.q);
   const category = one(sp.kategori);
   const city = one(sp.kota);
-  const [jobs, cities] = await Promise.all([listOpenJobs({ q, category, city }), listCities()]);
+  const [jobs, pastJobs, cities] = await Promise.all([
+    listOpenJobs({ q, category, city }),
+    listPastJobs({ q, category, city }),
+    listCities(),
+  ]);
 
   const link = (params: Record<string, string>) => {
     const sp = new URLSearchParams(Object.entries(params).filter(([, v]) => v));
@@ -81,6 +85,20 @@ export default async function JobsPage(props: PageProps<"/lowongan">) {
             Lihat semua kerjaan
           </Link>
         </div>
+      )}
+
+      {pastJobs.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-xl font-extrabold text-slate-700">⏰ Kerjaan yang sudah lewat</h2>
+          <p className="text-slate-500">
+            Sudah tidak bisa dilamar — sebagai gambaran upah & jenis kerjaan di daerah Anda.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pastJobs.map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );
