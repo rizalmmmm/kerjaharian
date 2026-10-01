@@ -10,7 +10,7 @@ import { resendWaitSeconds, sendVerificationEmail } from "./verification";
 import { canReview, getDealForUser } from "./deal";
 import { normalizeHandle } from "./profile";
 import { sendPhoneOtp, verifyPhoneOtp } from "./phone-verification";
-import { normalizePhone } from "./whatsapp";
+import { hasEmail, normalizePhone, placeholderEmail } from "./phone";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -31,27 +31,32 @@ export async function register(_: FormState, fd: FormData): Promise<FormState> {
   const password = str(fd, "password");
   const role = str(fd, "role") as Role;
 
-  if (!name || !email || !password || !phone) return { error: "Nama, email, nomor HP, dan kata sandi wajib diisi." };
-  if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "Format email tidak valid." };
-  if (!/^[0-9+\-\s]{8,16}$/.test(phone)) return { error: "Nomor HP tidak valid." };
-  if (password.length < 8) return { error: "Kata sandi minimal 8 karakter." };
-  if (role !== "pekerja" && role !== "pemberi_kerja") return { error: "Pilih jenis akun." };
+  if (role !== "pekerja" && role !== "pemberi_kerja") return { error: "Pilih dulu: cari kerja atau cari pekerja." };
+  if (!name) return { error: "Nama wajib diisi." };
+  const phoneNorm = normalizePhone(phone);
+  if (!phoneNorm) return { error: "Nomor HP tidak benar. Contoh: 081234567890" };
+  if (password.length < 6) return { error: "Kata sandi minimal 6 huruf/angka." };
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) return { error: "Email tidak benar. Kosongkan saja jika tidak punya." };
 
-  if (await get("SELECT 1 FROM users WHERE email = ?", [email])) {
+  if (await get("SELECT 1 FROM users WHERE phone_norm = ?", [phoneNorm])) {
+    return { error: "Nomor HP ini sudah terdaftar. Silakan masuk." };
+  }
+  if (email && (await get("SELECT 1 FROM users WHERE email = ?", [email]))) {
     return { error: "Email sudah terdaftar. Silakan masuk." };
   }
   const { id } = await run(
-    "INSERT INTO users (name, email, phone, password_hash, role, city) VALUES (?, ?, ?, ?, ?, ?)",
-    [name, email, phone, hashPassword(password), role, city],
+    "INSERT INTO users (name, email, phone, phone_norm, password_hash, role, city) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [name, email || placeholderEmail(phoneNorm), phone, phoneNorm, hashPassword(password), role, city],
   );
   await createSession(id);
   // Gagal kirim email tidak menggagalkan pendaftaran; pengguna bisa kirim ulang dari dasbor.
-  await sendVerificationEmail({ id, name, email });
+  if (email) await sendVerificationEmail({ id, name, email });
   redirect(safeNext(str(fd, "next")));
 }
 
 export async function resendVerification(): Promise<FormState> {
   const user = await requireUser();
+  if (!hasEmail(user.email)) return { error: "Tambahkan email di profil terlebih dahulu." };
   if (user.email_verified_at) return { ok: "Email Anda sudah terverifikasi." };
   const wait = await resendWaitSeconds(user.id);
   if (wait > 0) return { error: `Tunggu ${wait} detik sebelum mengirim ulang.` };
@@ -62,13 +67,18 @@ export async function resendVerification(): Promise<FormState> {
 }
 
 export async function login(_: FormState, fd: FormData): Promise<FormState> {
-  const email = str(fd, "email").toLowerCase();
+  // Bisa masuk dengan nomor HP (utama) atau email.
+  const id = str(fd, "login") || str(fd, "email");
   const password = str(fd, "password");
-  const row = await get<{ id: number; password_hash: string }>("SELECT id, password_hash FROM users WHERE email = ?", [
-    email,
-  ]);
+  const phoneNorm = id.includes("@") ? null : normalizePhone(id);
+  const row = await get<{ id: number; password_hash: string }>(
+    phoneNorm
+      ? "SELECT id, password_hash FROM users WHERE phone_norm = ?"
+      : "SELECT id, password_hash FROM users WHERE email = ?",
+    [phoneNorm ?? id.toLowerCase()],
+  );
   if (!row || !verifyPassword(password, row.password_hash)) {
-    return { error: "Email atau kata sandi salah." };
+    return { error: "Nomor HP atau kata sandi salah." };
   }
   await createSession(row.id);
   redirect(safeNext(str(fd, "next")));
@@ -192,26 +202,43 @@ export async function updateProfile(_: FormState, fd: FormData): Promise<FormSta
   const user = await requireUser();
   const name = str(fd, "name");
   const phone = str(fd, "phone");
+  const email = str(fd, "email").toLowerCase();
   if (!name) return { error: "Nama wajib diisi." };
-  if (!/^[0-9+\-\s]{8,16}$/.test(phone)) return { error: "Nomor HP tidak valid." };
+  const phoneNorm = normalizePhone(phone);
+  if (!phoneNorm) return { error: "Nomor HP tidak benar. Contoh: 081234567890" };
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) return { error: "Email tidak benar. Kosongkan saja jika tidak punya." };
   const instagram = normalizeHandle(str(fd, "instagram"), "instagram");
   const facebook = normalizeHandle(str(fd, "facebook"), "facebook");
   if (instagram === null) return { error: "Username Instagram tidak valid." };
   if (facebook === null) return { error: "Username/tautan Facebook tidak valid." };
-  if (normalizePhone(phone) !== normalizePhone(user.phone)) {
+
+  const phoneChanged = phoneNorm !== normalizePhone(user.phone);
+  if (phoneChanged && (await get("SELECT 1 FROM users WHERE phone_norm = ? AND id != ?", [phoneNorm, user.id]))) {
+    return { error: "Nomor HP ini sudah dipakai akun lain." };
+  }
+  const oldEmail = hasEmail(user.email) ? user.email : "";
+  const emailChanged = email !== oldEmail;
+  if (emailChanged && email && (await get("SELECT 1 FROM users WHERE email = ? AND id != ?", [email, user.id]))) {
+    return { error: "Email ini sudah dipakai akun lain." };
+  }
+
+  if (phoneChanged) {
     // Nomor berubah: status verifikasi WhatsApp harus diulang.
     await run("UPDATE users SET phone_verified_at = NULL WHERE id = ?", [user.id]);
     await run("DELETE FROM phone_otps WHERE user_id = ?", [user.id]);
   }
-  await run("UPDATE users SET name = ?, phone = ?, city = ?, bio = ?, instagram = ?, facebook = ? WHERE id = ?", [
-    name,
-    phone,
-    str(fd, "city"),
-    str(fd, "bio").slice(0, 500),
-    instagram || null,
-    facebook || null,
-    user.id,
-  ]);
+  if (emailChanged) {
+    await run("UPDATE users SET email = ?, email_verified_at = NULL WHERE id = ?", [
+      email || placeholderEmail(phoneNorm),
+      user.id,
+    ]);
+    await run("DELETE FROM email_tokens WHERE user_id = ?", [user.id]);
+  }
+  await run(
+    "UPDATE users SET name = ?, phone = ?, phone_norm = ?, city = ?, bio = ?, instagram = ?, facebook = ? WHERE id = ?",
+    [name, phone, phoneNorm, str(fd, "city"), str(fd, "bio").slice(0, 500), instagram || null, facebook || null, user.id],
+  );
+  if (emailChanged && email) await sendVerificationEmail({ id: user.id, name, email });
   revalidatePath("/", "layout");
   return { ok: "Profil tersimpan." };
 }

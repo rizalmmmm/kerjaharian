@@ -4,6 +4,9 @@ Marketplace kerja harian: mempertemukan **pemberi kerja** dengan **pekerja haria
 
 ## Fitur
 
+- **Ramah pengguna awam / di desa**: daftar & masuk cukup dengan **nama + nomor HP** (email opsional),
+  menu bawah berikon besar di HP, kategori bergambar, tombol & huruf besar, bahasa sederhana.
+
 - **Cari lowongan** dengan filter kata kunci, kategori, dan kota.
 - **Akun pekerja**: daftar, lamar pekerjaan (dengan pesan), pantau status lamaran, batalkan lamaran.
 - **Akun pemberi kerja**: pasang lowongan (upah per hari/jam/proyek, tanggal, jam kerja, jumlah orang),
@@ -45,9 +48,9 @@ Buka http://localhost:3000. Database dibuat otomatis di `data/kerjaharian.db` (a
 
 | Email           | Peran          | Kata sandi |
 | --------------- | -------------- | ---------- |
-| `toko@demo.id`  | Pemberi kerja  | `demo1234` |
+| `081234567890` / `toko@demo.id` | Pemberi kerja | `demo1234` |
 | `event@demo.id` | Pemberi kerja  | `demo1234` |
-| `budi@demo.id`  | Pekerja        | `demo1234` |
+| `085712345678` / `budi@demo.id` | Pekerja | `demo1234` |
 
 ## Struktur
 

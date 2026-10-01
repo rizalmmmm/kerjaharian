@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Field } from "@/components/field";
 import { ActionForm } from "@/components/forms";
+import { PasswordInput } from "@/components/password-input";
 import { getCurrentUser } from "@/lib/auth";
 import { login } from "@/lib/actions";
 import { DEMO_ENABLED } from "@/lib/db";
@@ -13,42 +15,40 @@ export default async function LoginPage(props: PageProps<"/masuk">) {
   const { next } = await props.searchParams;
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-extrabold">Masuk</h1>
-      <p className="mt-1 text-slate-600">
+    <div className="mx-auto max-w-md px-4 py-8">
+      <h1 className="text-3xl font-extrabold">Masuk 🔑</h1>
+      <p className="mt-1 text-lg text-slate-600">Pakai nomor HP yang Anda daftarkan.</p>
+      <div className="card mt-6 p-5">
+        <ActionForm
+          action={login}
+          submitLabel="Masuk"
+          pendingLabel="Masuk…"
+          submitClassName="btn-big btn-primary"
+          className="grid gap-5"
+        >
+          <input type="hidden" name="next" value={typeof next === "string" ? next : ""} />
+          <Field
+            label="Nomor HP / WhatsApp"
+            name="login"
+            inputMode="tel"
+            autoComplete="username"
+            placeholder="08xxxxxxxxxx"
+            required
+          />
+          <PasswordInput label="Kata sandi" autoComplete="current-password" />
+          <p className="-mt-2 text-sm text-slate-500">Dulu daftar pakai email? Ketik email Anda di kolom nomor HP.</p>
+        </ActionForm>
+      </div>
+      <p className="mt-6 text-center text-lg">
         Belum punya akun?{" "}
-        <Link href="/daftar" className="font-semibold text-brand-700 hover:underline">
+        <Link href="/daftar" className="font-bold text-brand-700 underline">
           Daftar gratis
         </Link>
       </p>
-      <div className="card mt-6 p-6">
-        <ActionForm action={login} submitLabel="Masuk" pendingLabel="Masuk…">
-          <input type="hidden" name="next" value={typeof next === "string" ? next : ""} />
-          <div>
-            <label htmlFor="email" className="label">
-              Email
-            </label>
-            <input id="email" name="email" type="email" autoComplete="email" required className="input" />
-          </div>
-          <div>
-            <label htmlFor="password" className="label">
-              Kata sandi
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="input"
-            />
-          </div>
-        </ActionForm>
-      </div>
       {DEMO_ENABLED && (
-        <p className="mt-4 rounded-lg bg-slate-100 p-3 text-xs text-slate-600">
-          Akun demo (sandi <code>demo1234</code>): <code>toko@demo.id</code>, <code>event@demo.id</code> (pemberi
-          kerja), <code>budi@demo.id</code> (pekerja).
+        <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-600">
+          Akun demo (sandi <code>demo1234</code>): <code>081234567890</code> (pemberi kerja), <code>085712345678</code>{" "}
+          (pekerja).
         </p>
       )}
     </div>
