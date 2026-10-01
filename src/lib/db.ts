@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { hashPassword } from "./password";
 import { normalizePhone } from "./phone";
+import dummyData from "./dummy-jobs.json";
 
 /**
  * Database: libSQL/SQLite.
@@ -15,9 +16,7 @@ const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN?.trim();
 const DB_URL = TURSO_URL || `file:${path.join(process.cwd(), "data", "kerjaharian.db")}`;
 
 /** Data demo diisi otomatis secara lokal; di Vercel hanya bila SEED_DEMO_DATA=1. */
-export const DEMO_ENABLED = process.env.SEED_DEMO_DATA
-  ? process.env.SEED_DEMO_DATA === "1"
-  : !process.env.VERCEL;
+export const DEMO_ENABLED = process.env.SEED_DEMO_DATA ? process.env.SEED_DEMO_DATA === "1" : !process.env.VERCEL;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -119,6 +118,11 @@ CREATE TABLE IF NOT EXISTS phone_otps (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS app_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS email_tokens (
   token_hash TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -142,8 +146,12 @@ async function migrate(db: Client) {
   const cols = (await db.execute("PRAGMA table_info(jobs)")).rows.map((r) => String(r.name));
   if (!cols.includes("lat")) await db.execute("ALTER TABLE jobs ADD COLUMN lat REAL");
   if (!cols.includes("lng")) await db.execute("ALTER TABLE jobs ADD COLUMN lng REAL");
+  if (!cols.includes("is_dummy")) await db.execute("ALTER TABLE jobs ADD COLUMN is_dummy INTEGER NOT NULL DEFAULT 0");
+  if (!cols.includes("dummy_key")) await db.execute("ALTER TABLE jobs ADD COLUMN dummy_key TEXT");
   const userCols = (await db.execute("PRAGMA table_info(users)")).rows.map((r) => String(r.name));
   if (!userCols.includes("email_verified_at")) await db.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
+  if (!userCols.includes("is_dummy"))
+    await db.execute("ALTER TABLE users ADD COLUMN is_dummy INTEGER NOT NULL DEFAULT 0");
   for (const col of ["avatar_id", "instagram", "facebook", "phone_verified_at", "phone_norm"]) {
     if (!userCols.includes(col)) await db.execute(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
   }
@@ -157,7 +165,9 @@ async function backfillPhoneNorm(db: Client) {
   const rows = (await db.execute("SELECT id, phone FROM users WHERE phone_norm IS NULL ORDER BY id")).rows;
   if (rows.length) {
     const taken = new Set(
-      (await db.execute("SELECT phone_norm FROM users WHERE phone_norm IS NOT NULL")).rows.map((r) => String(r.phone_norm)),
+      (await db.execute("SELECT phone_norm FROM users WHERE phone_norm IS NOT NULL")).rows.map((r) =>
+        String(r.phone_norm),
+      ),
     );
     const updates: InStatement[] = [];
     for (const r of rows) {
@@ -168,7 +178,56 @@ async function backfillPhoneNorm(db: Client) {
     }
     if (updates.length) await db.batch(updates, "write");
   }
-  await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_norm ON users(phone_norm) WHERE phone_norm IS NOT NULL");
+  await db.execute(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_norm ON users(phone_norm) WHERE phone_norm IS NOT NULL",
+  );
+}
+
+/**
+ * 100 lowongan contoh yang sudah kedaluwarsa (lihat docs/DATA-DUMMY.txt), agar situs tidak tampak kosong.
+ * Ditandai is_dummy = 1. Dimasukkan sekali saja (penanda di app_meta), jadi bila dihapus tidak muncul lagi.
+ * Akun pemberi kerja contoh tidak punya nomor HP dan tidak bisa dipakai masuk.
+ */
+async function seedDummyJobs(db: Client) {
+  const MARK = `dummy_jobs_v${dummyData.version}`;
+  if ((await db.execute({ sql: "SELECT 1 FROM app_meta WHERE key = ?", args: [MARK] })).rows.length) return;
+
+  const stmts: InStatement[] = [
+    // Penanda dulu: bila instance lain sudah mengisi, batch ini gagal utuh (PRIMARY KEY bentrok).
+    { sql: "INSERT INTO app_meta (key, value) VALUES (?, ?)", args: [MARK, new Date().toISOString()] },
+    ...dummyData.employers.map((e) => ({
+      sql: `INSERT OR IGNORE INTO users (name, email, phone, password_hash, role, city, bio, is_dummy)
+            VALUES (?, ?, '', '!', 'pemberi_kerja', ?, ?, 1)`,
+      args: [e.name, e.email, e.city, e.bio],
+    })),
+    ...dummyData.jobs.map((j) => ({
+      sql: `INSERT INTO jobs (employer_id, title, category, description, city, address, wage, wage_unit, work_date,
+              start_time, end_time, slots, status, lat, lng, is_dummy, dummy_key)
+            VALUES ((SELECT id FROM users WHERE email = ? AND is_dummy = 1), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tutup', ?, ?, 1, ?)`,
+      args: [
+        dummyData.employers.find((e) => e.name === j.employer)!.email,
+        j.title,
+        j.category,
+        j.description,
+        j.city,
+        j.address,
+        j.wage,
+        j.wage_unit,
+        j.work_date,
+        j.start_time,
+        j.end_time,
+        j.slots,
+        j.lat,
+        j.lng,
+        j.key,
+      ],
+    })),
+  ];
+  try {
+    await db.batch(stmts, "write");
+  } catch {
+    // Sudah diisi oleh instance lain secara bersamaan — abaikan.
+  }
 }
 
 const globalForDb = globalThis as unknown as { khDb?: Promise<Client> };
@@ -198,6 +257,7 @@ async function open(): Promise<Client> {
   await db.executeMultiple(SCHEMA);
   await migrate(db);
   if (DEMO_ENABLED) await seed(db);
+  if (process.env.SEED_DUMMY_JOBS !== "0") await seedDummyJobs(db);
   await backfillPhoneNorm(db);
   return db;
 }
@@ -260,9 +320,33 @@ async function seed(db: Client) {
 
   const pw = hashPassword("demo1234");
   const users: [number, string, string, string, string, string, string][] = [
-    [1, "Toko Sumber Rejeki", "toko@demo.id", "081234567890", "pemberi_kerja", "Jakarta Selatan", "Toko grosir sembako sejak 2005."],
-    [2, "Cahaya Event Organizer", "event@demo.id", "081298765432", "pemberi_kerja", "Bandung", "EO untuk pernikahan dan acara perusahaan."],
-    [3, "Budi Santoso", "budi@demo.id", "085712345678", "pekerja", "Jakarta Selatan", "Berpengalaman bongkar muat dan kurir motor."],
+    [
+      1,
+      "Toko Sumber Rejeki",
+      "toko@demo.id",
+      "081234567890",
+      "pemberi_kerja",
+      "Jakarta Selatan",
+      "Toko grosir sembako sejak 2005.",
+    ],
+    [
+      2,
+      "Cahaya Event Organizer",
+      "event@demo.id",
+      "081298765432",
+      "pemberi_kerja",
+      "Bandung",
+      "EO untuk pernikahan dan acara perusahaan.",
+    ],
+    [
+      3,
+      "Budi Santoso",
+      "budi@demo.id",
+      "085712345678",
+      "pekerja",
+      "Jakarta Selatan",
+      "Berpengalaman bongkar muat dan kurir motor.",
+    ],
   ];
   const [toko, ev, budi] = [1, 2, 3];
   const coords: Record<string, [number, number]> = {
@@ -270,12 +354,90 @@ async function seed(db: Client) {
     Bandung: [-6.9147, 107.6098],
   };
   const jobs: [number, string, string, string, string, string, number, string, number, string, string, number][] = [
-    [toko, "Helper Bongkar Muat Barang", "Gudang & Logistik", "Membantu bongkar muat kiriman beras dan minyak dari truk ke gudang. Wajib sehat dan kuat angkat beban. Makan siang disediakan.", "Jakarta Selatan", "Jl. Fatmawati No. 12", 150000, "hari", 1, "08:00", "16:00", 4],
-    [toko, "Penjaga Toko Pengganti", "Retail & Toko", "Menjaga kasir dan melayani pembeli selama pemilik toko cuti. Bisa menggunakan kalkulator dan jujur.", "Jakarta Selatan", "Jl. Fatmawati No. 12", 120000, "hari", 3, "07:00", "15:00", 1],
-    [ev, "Crew Dekorasi Pernikahan", "Event", "Memasang dekorasi pelaminan, bunga, dan lighting untuk acara resepsi. Pengalaman dekorasi menjadi nilai tambah.", "Bandung", "Gedung Serbaguna Dago", 175000, "hari", 2, "06:00", "18:00", 6],
-    [ev, "Pelayan Katering (Waiter)", "Event", "Melayani tamu undangan di acara resepsi. Berpenampilan rapi, kemeja putih dan celana hitam.", "Bandung", "Hotel Braga", 25000, "jam", 2, "10:00", "15:00", 10],
-    [ev, "Tukang Cat Dinding Kantor", "Konstruksi & Renovasi", "Pengecatan ulang ruang kantor 3 lantai. Alat dan cat disediakan.", "Bandung", "Jl. Asia Afrika No. 45", 1200000, "proyek", 5, "08:00", "17:00", 2],
-    [toko, "Kurir Motor Antar Barang", "Kurir & Pengiriman", "Mengantar pesanan sembako ke pelanggan area Jakarta Selatan. Wajib punya motor dan SIM C. Bensin diganti.", "Jakarta Selatan", "Jl. Fatmawati No. 12", 130000, "hari", 1, "09:00", "17:00", 2],
+    [
+      toko,
+      "Helper Bongkar Muat Barang",
+      "Gudang & Logistik",
+      "Membantu bongkar muat kiriman beras dan minyak dari truk ke gudang. Wajib sehat dan kuat angkat beban. Makan siang disediakan.",
+      "Jakarta Selatan",
+      "Jl. Fatmawati No. 12",
+      150000,
+      "hari",
+      1,
+      "08:00",
+      "16:00",
+      4,
+    ],
+    [
+      toko,
+      "Penjaga Toko Pengganti",
+      "Retail & Toko",
+      "Menjaga kasir dan melayani pembeli selama pemilik toko cuti. Bisa menggunakan kalkulator dan jujur.",
+      "Jakarta Selatan",
+      "Jl. Fatmawati No. 12",
+      120000,
+      "hari",
+      3,
+      "07:00",
+      "15:00",
+      1,
+    ],
+    [
+      ev,
+      "Crew Dekorasi Pernikahan",
+      "Event",
+      "Memasang dekorasi pelaminan, bunga, dan lighting untuk acara resepsi. Pengalaman dekorasi menjadi nilai tambah.",
+      "Bandung",
+      "Gedung Serbaguna Dago",
+      175000,
+      "hari",
+      2,
+      "06:00",
+      "18:00",
+      6,
+    ],
+    [
+      ev,
+      "Pelayan Katering (Waiter)",
+      "Event",
+      "Melayani tamu undangan di acara resepsi. Berpenampilan rapi, kemeja putih dan celana hitam.",
+      "Bandung",
+      "Hotel Braga",
+      25000,
+      "jam",
+      2,
+      "10:00",
+      "15:00",
+      10,
+    ],
+    [
+      ev,
+      "Tukang Cat Dinding Kantor",
+      "Konstruksi & Renovasi",
+      "Pengecatan ulang ruang kantor 3 lantai. Alat dan cat disediakan.",
+      "Bandung",
+      "Jl. Asia Afrika No. 45",
+      1200000,
+      "proyek",
+      5,
+      "08:00",
+      "17:00",
+      2,
+    ],
+    [
+      toko,
+      "Kurir Motor Antar Barang",
+      "Kurir & Pengiriman",
+      "Mengantar pesanan sembako ke pelanggan area Jakarta Selatan. Wajib punya motor dan SIM C. Bensin diganti.",
+      "Jakarta Selatan",
+      "Jl. Fatmawati No. 12",
+      130000,
+      "hari",
+      1,
+      "09:00",
+      "17:00",
+      2,
+    ],
   ];
 
   const stmts: InStatement[] = [
@@ -287,7 +449,22 @@ async function seed(db: Client) {
       sql: `INSERT INTO jobs
         (id, employer_id, title, category, description, city, address, wage, wage_unit, work_date, start_time, end_time, slots, lat, lng)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [i + 1, j[0], j[1], j[2], j[3], j[4], j[5], j[6], j[7], isoDatePlus(j[8]), j[9], j[10], j[11], ...coords[j[4]]],
+      args: [
+        i + 1,
+        j[0],
+        j[1],
+        j[2],
+        j[3],
+        j[4],
+        j[5],
+        j[6],
+        j[7],
+        isoDatePlus(j[8]),
+        j[9],
+        j[10],
+        j[11],
+        ...coords[j[4]],
+      ],
     })),
     // Contoh "deal": Budi sudah diterima di lowongan bongkar muat, lengkap dengan chat.
     {
@@ -296,7 +473,12 @@ async function seed(db: Client) {
     },
     {
       sql: "INSERT INTO messages (application_id, sender_id, body) VALUES (1, ?, ?), (1, ?, ?)",
-      args: [toko, "Halo Pak Budi, lamaran diterima. Besok datang jam 08.00 ya.", budi, "Siap, Pak. Saya berangkat dari Pasar Minggu."],
+      args: [
+        toko,
+        "Halo Pak Budi, lamaran diterima. Besok datang jam 08.00 ya.",
+        budi,
+        "Siap, Pak. Saya berangkat dari Pasar Minggu.",
+      ],
     },
     // Pekerjaan yang sudah selesai + ulasan dua arah, agar rating tampil di demo.
     {
@@ -307,7 +489,14 @@ async function seed(db: Client) {
     { sql: "INSERT INTO applications (id, job_id, worker_id, status) VALUES (100, 100, ?, 'diterima')", args: [budi] },
     {
       sql: "INSERT INTO reviews (application_id, reviewer_id, reviewee_id, rating, comment) VALUES (100, ?, ?, 5, ?), (100, ?, ?, 5, ?)",
-      args: [toko, budi, "Rajin, datang tepat waktu, kerjanya rapi.", budi, toko, "Bayaran tepat waktu, makan siang disediakan."],
+      args: [
+        toko,
+        budi,
+        "Rajin, datang tepat waktu, kerjanya rapi.",
+        budi,
+        toko,
+        "Bayaran tepat waktu, makan siang disediakan.",
+      ],
     },
     { sql: "UPDATE users SET instagram = 'tokosumberrejeki' WHERE id = ?", args: [toko] },
     { sql: "UPDATE users SET instagram = 'cahaya.eo', facebook = 'cahayaeventorganizer' WHERE id = ?", args: [ev] },

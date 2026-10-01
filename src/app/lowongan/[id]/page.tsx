@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { applyJob, decideApplication, setJobStatus, withdrawApplication } from "@/lib/actions";
 import { WAGE_UNITS, formatRupiah, formatTanggal } from "@/lib/constants";
 import { getApplication, getJob, listApplicants } from "@/lib/queries";
-import { unreadCounts } from "@/lib/deal";
+import { todayWib, unreadCounts } from "@/lib/deal";
 import { ratingSummaries, ratingSummary } from "@/lib/profile";
 import { Avatar } from "@/components/avatar";
 import { RatingBadge } from "@/components/stars";
@@ -64,7 +64,7 @@ export default async function JobDetailPage(props: PageProps<"/lowongan/[id]">) 
           <Info label="Tanggal" value={formatTanggal(job.work_date)} />
           <Info label="Jam kerja" value={job.start_time ? `${job.start_time}–${job.end_time}` : "Fleksibel"} />
           <Info label="Kebutuhan" value={`${remaining} dari ${job.slots} orang lagi`} />
-          <Info label="Lokasi" value={[job.address, job.city].filter(Boolean).join(", ")} />
+          <Info label="Lokasi" value={[...new Set([job.address, job.city].filter(Boolean))].join(", ")} />
           <Info label="Pelamar" value={`${job.applicant_count} orang`} />
         </div>
 
@@ -76,7 +76,7 @@ export default async function JobDetailPage(props: PageProps<"/lowongan/[id]">) 
         {isOwner ? (
           <OwnerPanel jobId={job.id} status={job.status} />
         ) : (
-          <ApplyPanel jobId={job.id} status={job.status} />
+          <ApplyPanel jobId={job.id} status={job.status} expired={job.work_date < todayWib()} />
         )}
       </aside>
 
@@ -94,10 +94,25 @@ function Info({ label, value, strong }: { label: string; value: string; strong?:
   );
 }
 
-async function ApplyPanel({ jobId, status }: { jobId: number; status: "buka" | "tutup" }) {
+function ClosedPanel({ expired }: { expired: boolean }) {
+  return (
+    <div className="card p-5 text-center">
+      <div className="text-4xl">{expired ? "⏰" : "🔒"}</div>
+      <h2 className="mt-2 text-xl font-bold">{expired ? "Kerjaan ini sudah lewat" : "Lowongan sudah ditutup"}</h2>
+      <p className="mt-1 text-slate-600">Sudah tidak bisa dilamar.</p>
+      <Link href="/lowongan" className="btn-big btn-primary mt-4">
+        🔍 Cari kerjaan lain
+      </Link>
+    </div>
+  );
+}
+
+async function ApplyPanel({ jobId, status, expired }: { jobId: number; status: "buka" | "tutup"; expired: boolean }) {
   const user = await getCurrentUser();
+  const closed = expired || status === "tutup";
 
   if (!user) {
+    if (closed) return <ClosedPanel expired={expired} />;
     return (
       <div className="card p-5">
         <h2 className="text-xl font-bold">Mau kerja ini? ✋</h2>
@@ -115,6 +130,7 @@ async function ApplyPanel({ jobId, status }: { jobId: number; status: "buka" | "
   }
 
   if (user.role !== "pekerja") {
+    if (closed) return <ClosedPanel expired={expired} />;
     return (
       <div className="card p-5 text-sm text-slate-600">
         Anda masuk sebagai pemberi kerja. Hanya pekerja yang dapat melamar.
@@ -144,9 +160,7 @@ async function ApplyPanel({ jobId, status }: { jobId: number; status: "buka" | "
     );
   }
 
-  if (status === "tutup") {
-    return <div className="card p-5 text-sm text-slate-600">Lowongan ini sudah ditutup.</div>;
-  }
+  if (closed) return <ClosedPanel expired={expired} />;
 
   return (
     <div className="card p-5">
