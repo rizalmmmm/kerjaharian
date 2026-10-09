@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { Header } from "@/components/header";
 import { LogoMark } from "@/components/logo";
@@ -36,6 +37,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <p>Pekerjaan harian, dibayar harian.</p>
           </div>
         </footer>
+        {/* Statistik pengunjung Vercel Web Analytics (aktifkan di dashboard: tab Analytics). */}
+        <Analytics />
       </body>
     </html>
   );
